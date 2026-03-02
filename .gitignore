@@ -1,0 +1,14 @@
+# no subir datos privados
+data/
+*.csv
+*.xlsx
+
+# archivos temporales de python
+__pycache__/
+*.pyc
+
+# jupyter
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
