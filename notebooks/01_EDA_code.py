@@ -65,20 +65,20 @@ ctx.add_basemap(ax, source=ctx.providers.OpenStreetMap.Mapnik)
 plt.title("Hospitales y UPAs en la Red Sudeste")
 plt.axis("off")
 plt.show()
-municipios = gpd.read_file("municipios_sudeste.shp")
+municipios = bases.cargar_municipios("../data/shapefiles/departamento/departamentoPolygon.shp")
 
-municipios = municipios[
-    municipios["nombre"].isin([
-        "QUILMES",
-        "ALMIRANTE BROWN",
-        "FLORENCIO VARELA",
-        "BERAZATEGUI"
-    ])
+amba_partidos = [
+    "CIUDAD AUTONOMA DE BUENOS AIRES", "QUILMES", "ALMIRANTE BROWN",
+    "FLORENCIO VARELA", "BERAZATEGUI", "LANUS", "LOMAS DE ZAMORA",
+    "AVELLANEDA", "ESCOBAR", "MORON", "MARTINEZ", "HURLINGHAM",
+    "ITUZAINGO", "LA MATANZA", "TIGRE", "SAN ISIDRO", "VICENTE LOPEZ"
 ]
 
-fig, ax = plt.subplots(figsize=(8,8))
+municipios_amba = municipios[municipios["nam_limpio"].isin(amba_partidos)]
 
-municipios.to_crs(epsg=3857).plot(
+fig, ax = plt.subplots(figsize=(10,10))
+
+municipios_amba.to_crs(epsg=3857).plot(
     ax=ax,
     alpha=0.3,
     edgecolor="black"
@@ -92,7 +92,7 @@ gdf_hosp.to_crs(epsg=3857).plot(
 
 ctx.add_basemap(ax)
 
-plt.title("Red Sudeste y hospitales")
+plt.title("Red Sudeste y hospitales (AMBA)")
 plt.axis("off")
 plt.show()
 gdf_hosp_m = gdf_hosp.to_crs(epsg=3857)

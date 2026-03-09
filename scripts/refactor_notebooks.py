@@ -40,6 +40,47 @@ df_traslados = bases.reconstruir_traslados(df_pacientes)
                 cell.source = code_01_setup
                 break
 
+    code_01_amba = """\
+municipios = bases.cargar_municipios("../data/shapefiles/departamento/departamentoPolygon.shp")
+
+amba_partidos = [
+    "CIUDAD AUTONOMA DE BUENOS AIRES", "QUILMES", "ALMIRANTE BROWN",
+    "FLORENCIO VARELA", "BERAZATEGUI", "LANUS", "LOMAS DE ZAMORA",
+    "AVELLANEDA", "ESCOBAR", "MORON", "MARTINEZ", "HURLINGHAM",
+    "ITUZAINGO", "LA MATANZA", "TIGRE", "SAN ISIDRO", "VICENTE LOPEZ"
+]
+
+municipios_amba = municipios[municipios["nam_limpio"].isin(amba_partidos)]
+
+fig, ax = plt.subplots(figsize=(10,10))
+
+municipios_amba.to_crs(epsg=3857).plot(
+    ax=ax, alpha=0.3, edgecolor="black"
+)
+
+gdf_hosp = gpd.GeoDataFrame(
+    hosp_coord,
+    geometry=gpd.points_from_xy(hosp_coord["Longitud"], hosp_coord["Latitud"]),
+    crs="EPSG:4326"
+)
+
+gdf_hosp.to_crs(epsg=3857).plot(
+    ax=ax, color="red", markersize=60
+)
+
+ctx.add_basemap(ax)
+
+plt.title("Red Sudeste y hospitales (AMBA)")
+plt.axis("off")
+plt.show()
+"""
+    # Replace the AMBA plot cell too
+    for i, cell in enumerate(nb01.cells):
+        if cell.cell_type == 'code':
+            if 'municipios = gpd.read_file("municipios_sudeste.shp")' in cell.source:
+                cell.source = code_01_amba
+                break
+
     with open(path_01, 'w', encoding='utf-8') as f:
         nbf.write(nb01, f)
     print("01_EDA.ipynb refactorizado.")

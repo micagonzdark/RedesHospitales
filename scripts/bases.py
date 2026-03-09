@@ -21,6 +21,8 @@ import folium
 import numpy as np
 from shapely.geometry import LineString
 import contextily as ctx
+import unicodedata
+import re
 # ---------------------------------------------------------
 
 # ---------------------------------------------------------
@@ -291,3 +293,25 @@ def analizar_red_hospitalaria(
     elif modo == "interactivo":
         pass # return plot_red_interactiva(G, hosp_coords)
     return G, edges
+
+
+# ---------------------------------------------------------
+# funciones de carga y limpieza geoespacial
+# ---------------------------------------------------------
+def limpiar_nombre(texto):
+    """Pasa el texto a mayúsculas, quita acentos y símbolos"""
+    if texto is None:
+        return ""
+    texto = texto.upper()
+    texto = ''.join(
+        c for c in unicodedata.normalize('NFD', texto)
+        if unicodedata.category(c) != 'Mn'
+    )
+    texto = re.sub(r'[^A-Z\s]', '', texto)
+    return texto.strip()
+
+def cargar_municipios(path_shp):
+    """Carga un shapefile y crea columna limpia"""
+    municipios = gpd.read_file(path_shp)
+    municipios["nam_limpio"] = municipios["nam"].apply(limpiar_nombre)
+    return municipios
