@@ -33,14 +33,28 @@ def get_linewidth(weight):
 # ---------------------------------------------------------
 # funciones de limpieza y reconstrucción de traslados
 # ---------------------------------------------------------
-def cargar_datos_pacientes(path):
-    df = pd.read_excel(path)
-    df = df[df["Id"].astype(str).str.match(r"[A-Za-z0-9]+")]
+def limpiar_pacientes(df):
+    df_clean = df[df["Id"].astype(str).str.match(r"[A-Za-z0-9]+")].copy()
+    
+    if "Nombre Hospital" in df_clean.columns:
+        df_clean["Nombre Hospital"] = df_clean["Nombre Hospital"].str.strip().str.upper()
+        
     date_cols = ["Fecha inicio", "Fecha egreso", "Última actualización"]
     for c in date_cols:
-        df[c] = pd.to_datetime(df[c], errors="coerce")
-    df["Duracion días"] = (df["Fecha egreso"] - df["Fecha inicio"]).dt.days
-    return df
+        if c in df_clean.columns:
+            df_clean[c] = pd.to_datetime(df_clean[c], errors="coerce")
+            
+    if "Fecha inicio" in df_clean.columns and "Fecha egreso" in df_clean.columns:
+        df_clean["Duracion días"] = (df_clean["Fecha egreso"] - df_clean["Fecha inicio"]).dt.days
+        
+    if "Motivo" in df_clean.columns:
+        df_clean["murio"] = df_clean["Motivo"].astype(str).str.contains("fallec|muert", case=False, na=False)
+        
+    return df_clean
+
+def cargar_datos_pacientes(path):
+    df = pd.read_excel(path)
+    return limpiar_pacientes(df)
 
 def reconstruir_traslados(df):
     df = df.sort_values(["Id", "Fecha inicio"]).copy()
@@ -74,12 +88,19 @@ def generar_red(traslados, fecha_inicio="2020-06-01", fecha_fin="2020-10-31"):
         G.add_edge(row["Nombre Hospital"], row["Hospital siguiente"], weight=row["weight"])
     return G, edges
 
+def limpiar_coordenadas(hosp_coords):
+    df_clean = hosp_coords.copy()
+    if "Latitud" in df_clean.columns:
+        df_clean["Latitud"] = df_clean["Latitud"].astype(str).str.replace(",", ".").astype(float)
+    if "Longitud" in df_clean.columns:
+        df_clean["Longitud"] = df_clean["Longitud"].astype(str).str.replace(",", ".").astype(float)
+    if "Nombre Hospital" in df_clean.columns:
+        df_clean["Nombre Hospital"] = df_clean["Nombre Hospital"].str.strip()
+    return df_clean
+
 def cargar_coordenadas(path):
     hosp_coords = pd.read_csv(path)
-    hosp_coords["Latitud"] = hosp_coords["Latitud"].astype(str).str.replace(",", ".").astype(float)
-    hosp_coords["Longitud"] = hosp_coords["Longitud"].astype(str).str.replace(",", ".").astype(float)
-    hosp_coords["Nombre Hospital"] = hosp_coords["Nombre Hospital"].str.strip()
-    return hosp_coords
+    return limpiar_coordenadas(hosp_coords)
 
 # ---------------------------------------------------------
 # funciones de visualización

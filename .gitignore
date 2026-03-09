@@ -12,3 +12,9 @@ __pycache__/
 
 # VS Code
 .vscode/
+
+AGENTS.md
+
+docs/*
+docs/estado-inicial.txt
+docs/mails.txt
