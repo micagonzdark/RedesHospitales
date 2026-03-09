@@ -30,8 +30,13 @@ import re
 # ---------------------------------------------------------
 def get_linewidth(weight):
     return np.log1p(weight) * 1.5
-# ---------------------------------------------------------
 
+def coords_a_dict(hosp_coords):
+
+    return {
+        row["Nombre Hospital"]: (row["Latitud"], row["Longitud"])
+        for _, row in hosp_coords.iterrows()
+    }
 # ---------------------------------------------------------
 # funciones de limpieza y reconstrucción de traslados
 # ---------------------------------------------------------
@@ -65,30 +70,60 @@ def reconstruir_traslados(df):
     df["dias_entre_hospitales"] = (df["Fecha ingreso siguiente"] - df["Fecha egreso"]).dt.days
     df["es_traslado"] = df["Motivo"].str.contains("traslad", case=False, na=False)
     traslados = df[
-        (df["es_traslado"]) &
-        (df["Hospital siguiente"].notna()) &
+        (df["es_traslado"]) & 
+        (df["Hospital siguiente"].notna()) & 
         (df["Hospital siguiente"] != df["Nombre Hospital"])
     ].copy()
+    
+    # normalizar nombres de hospitales
+    traslados["Nombre Hospital"] = traslados["Nombre Hospital"].apply(limpiar_nombre)
+    traslados["Hospital siguiente"] = traslados["Hospital siguiente"].apply(limpiar_nombre)
+    
     return traslados
+
+def normalizar_hospitales(df):
+    df = df.copy()
+    df["Nombre Hospital"] = df["Nombre Hospital"].apply(lambda x: limpiar_nombre(x))
+    return df
+
+def limpiar_nombre(texto):
+    """Pasa el texto a mayúsculas, quita acentos y símbolos"""
+    if texto is None:
+        return ""
+    texto = texto.upper()
+    texto = ''.join(
+        c for c in unicodedata.normalize('NFD', texto)
+        if unicodedata.category(c) != 'Mn'
+    )
+    texto = re.sub(r'[^A-Z\s]', '', texto)
+    return texto.strip()
+
+def cargar_municipios(path_shp):
+    """Carga un shapefile y crea columna limpia"""
+    municipios = gpd.read_file(path_shp)
+    municipios["nam_limpio"] = municipios["nam"].apply(limpiar_nombre)
+    return municipios
 
 # ---------------------------------------------------------
 # funciones de red hospitalaria
 # ---------------------------------------------------------
-def generar_red(traslados, fecha_inicio="2020-06-01", fecha_fin="2020-10-31"):
-    fecha_inicio = pd.to_datetime(fecha_inicio)
-    fecha_fin = pd.to_datetime(fecha_fin)
-    traslados_periodo = traslados[
-        (traslados["Fecha egreso"] >= fecha_inicio) &
-        (traslados["Fecha egreso"] <= fecha_fin)
-    ].copy()
-    edges = (
-        traslados_periodo.groupby(["Nombre Hospital", "Hospital siguiente"])
-        .size().reset_index(name="weight")
-    )
-    G = nx.DiGraph()
-    for _, row in edges.iterrows():
-        G.add_edge(row["Nombre Hospital"], row["Hospital siguiente"], weight=row["weight"])
-    return G, edges
+
+# obsoleta. Es una funcion mas basica que analizar red. Por el momento usamos directo analizar red
+# def generar_red(traslados, fecha_inicio="2020-06-01", fecha_fin="2020-10-31"):
+#     fecha_inicio = pd.to_datetime(fecha_inicio)
+#     fecha_fin = pd.to_datetime(fecha_fin)
+#     traslados_periodo = traslados[
+#         (traslados["Fecha egreso"] >= fecha_inicio) &
+#         (traslados["Fecha egreso"] <= fecha_fin)
+#     ].copy()
+#     edges = (
+#         traslados_periodo.groupby(["Nombre Hospital", "Hospital siguiente"])
+#         .size().reset_index(name="weight")
+#     )
+#     G = nx.DiGraph()
+#     for _, row in edges.iterrows():
+#         G.add_edge(row["Nombre Hospital"], row["Hospital siguiente"], weight=row["weight"])
+#     return G, edges
 
 def limpiar_coordenadas(hosp_coords):
     df_clean = hosp_coords.copy()
@@ -98,18 +133,63 @@ def limpiar_coordenadas(hosp_coords):
         df_clean["Longitud"] = df_clean["Longitud"].astype(str).str.replace(",", ".").astype(float)
     if "Nombre Hospital" in df_clean.columns:
         df_clean["Nombre Hospital"] = df_clean["Nombre Hospital"].str.strip()
+    if "Nombre Hospital" in df_clean.columns:
+        df_clean["Nombre Hospital"] = df_clean["Nombre Hospital"].apply(limpiar_nombre)
     return df_clean
 
 def cargar_coordenadas(path):
     hosp_coords = pd.read_csv(path)
     return limpiar_coordenadas(hosp_coords)
 
+
+
+def gdf_red_hospitalaria(G, hosp_coords):
+    """
+    Convierte un DiGraph de hospitales y las coordenadas en un GeoDataFrame
+    con aristas como LineStrings y nodos como puntos.
+    
+    Devuelve: gdf_edges, gdf_nodes
+    """
+    # nodo -> coordenadas
+    geom_dict = {row["Nombre Hospital"]: (row["Longitud"], row["Latitud"])
+                 for _, row in hosp_coords.iterrows()}
+
+    # aristas
+    edges_list = []
+    missing_nodes = set()
+    for u, v, d in G.edges(data=True):
+        if u not in geom_dict:
+            missing_nodes.add(u)
+            continue
+        if v not in geom_dict:
+            missing_nodes.add(v)
+            continue
+        edges_list.append({
+            "origen": u,
+            "destino": v,
+            "weight": d["weight"],
+            "geometry": LineString([geom_dict[u], geom_dict[v]])
+        })
+    if missing_nodes:
+        print("Ignorados (no encontrados en hosp_coords):", missing_nodes)
+
+    gdf_edges = gpd.GeoDataFrame(edges_list, geometry="geometry", crs="EPSG:4326")
+    gdf_edges = gdf_edges.to_crs(epsg=3857)
+
+    # nodos
+    gdf_nodes = gpd.GeoDataFrame(
+        hosp_coords,
+        geometry=gpd.points_from_xy(hosp_coords["Longitud"], hosp_coords["Latitud"]),
+        crs="EPSG:4326"
+    ).to_crs(epsg=3857)
+
+    return gdf_edges, gdf_nodes
 # ---------------------------------------------------------
 # funciones de visualización
 # ---------------------------------------------------------
 
 # estatico en eje de coordenadas
-def plot_edges_geo(G, hosp_coords):
+def plot_edges_geo(G, hosp_coords, mostrar_nombres=True, mostrar_peso=True):
     fig, ax = plt.subplots(figsize=(12,12))
     
     gdf_nodes = gpd.GeoDataFrame(
@@ -124,12 +204,18 @@ def plot_edges_geo(G, hosp_coords):
             continue
         origen = coords_dict[u]
         destino = coords_dict[v]
+        lw = get_linewidth(d["weight"]) if mostrar_peso else 1
         ax.plot([origen["Longitud"], destino["Longitud"]],
                 [origen["Latitud"], destino["Latitud"]],
-                linewidth=get_linewidth(d["weight"]), alpha=0.5)
-    
-    for _, row in gdf_nodes.iterrows():
-        ax.text(row["Longitud"], row["Latitud"], row["Nombre Hospital"], fontsize=8, ha="right")
+                linewidth=lw, alpha=0.5)
+        if mostrar_peso:
+            xm = (origen["Longitud"] + destino["Longitud"]) / 2
+            ym = (origen["Latitud"] + destino["Latitud"]) / 2
+            ax.text(xm, ym, str(d["weight"]), fontsize=8, color="blue")
+
+    if mostrar_nombres:
+        for _, row in gdf_nodes.iterrows():
+            ax.text(row["Longitud"], row["Latitud"], row["Nombre Hospital"], fontsize=8, ha="right")
     
     ax.set_xlabel("Longitud")
     ax.set_ylabel("Latitud")
@@ -142,9 +228,8 @@ def plot_edges_geo(G, hosp_coords):
 # plt.show()  # decidís cuándo mostrar
 
 
-# estatico sobre el mapa
-def plot_red_con_mapa(G, hosp_coords):
-    # limpiar nombres de hospitales
+# estatico sobre el mapa 
+def plot_red_con_mapa(G, hosp_coords, mostrar_nombres=True, mostrar_peso=True):
     hosp_coords = hosp_coords.copy()
     hosp_coords["Nombre Hospital"] = hosp_coords["Nombre Hospital"].str.strip()
 
@@ -178,12 +263,29 @@ def plot_red_con_mapa(G, hosp_coords):
     # plotear aristas solo si hay
     if edges_list:
         gdf_edges = gpd.GeoDataFrame(edges_list, geometry='geometry', crs="EPSG:3857")
-        gdf_edges.plot(ax=ax, linewidth=gdf_edges["weight"].apply(get_linewidth), alpha=0.6)
+        # definir ancho de línea
+        if mostrar_peso:
+            lw_series = gdf_edges["weight"].apply(get_linewidth)
+        else:
+            lw_series = 1
+        gdf_edges.plot(ax=ax, linewidth=lw_series, alpha=0.6)
+
+        # agregar texto con el peso
+        if mostrar_peso:
+            for _, row in gdf_edges.iterrows():
+                x, y = row.geometry.interpolate(0.5, normalized=True).xy
+                ax.text(x[0], y[0], str(row["weight"]), fontsize=8, color="blue",
+                        ha="center", va="center")
     else:
         print("No hay aristas para mostrar")
 
     # plotear nodos
     gdf_nodes.plot(ax=ax, color="red", markersize=40, zorder=2)
+
+    # nombres de hospitales
+    if mostrar_nombres:
+        for _, row in gdf_nodes.iterrows():
+            ax.text(row.geometry.x, row.geometry.y, row["Nombre Hospital"], fontsize=8, ha="right")
 
     # agregar basemap
     ctx.add_basemap(ax, source=ctx.providers.OpenStreetMap.Mapnik)
@@ -194,9 +296,8 @@ def plot_red_con_mapa(G, hosp_coords):
 # ejemplo de uso:
 # fig, ax = plot_red_con_mapa(G_periodo, hosp_coords)
 # plt.show()  # decidís cuándo mostrar
-
 # interactivo en el mapa
-def plot_red_interactiva(G, hosp_coords):
+def plot_red_interactiva(G, hosp_coords, mostrar_nombres=True, mostrar_peso=True):
     coord_dict = {row["Nombre Hospital"]: (row["Latitud"], row["Longitud"])
                   for _, row in hosp_coords.iterrows()}
 
@@ -204,23 +305,80 @@ def plot_red_interactiva(G, hosp_coords):
 
     m = folium.Map(location=centro, zoom_start=9)
 
+    # nodos
     for nombre, (lat, lon) in coord_dict.items():
-        folium.CircleMarker(location=[lat, lon], radius=6, popup=nombre,
+        popup_text = nombre if mostrar_nombres else None
+        folium.CircleMarker(location=[lat, lon], radius=6, popup=popup_text,
                             color="red", fill=True).add_to(m)
 
+    # aristas
     for u, v, d in G.edges(data=True):
         if u not in coord_dict or v not in coord_dict:
             continue
-        folium.PolyLine([coord_dict[u], coord_dict[v]], weight=1 + d["weight"]*0.5,
+        peso_linea = 1 + d["weight"]*0.5 if mostrar_peso else 1
+        folium.PolyLine([coord_dict[u], coord_dict[v]], weight=peso_linea,
                         color="blue").add_to(m)
 
-    return m  # ahora solo devuelve el mapa, vos decidís cuándo guardar o mostrar
-
+    return m
 # ejemplo de uso:
 # m = plot_red_interactiva(G_periodo, hosp_coords)
 # m.save("red_interactiva.html")
 
 
+
+def plot_red_gdf(G, hosp_coords, mostrar_nombres=True, mostrar_peso=True):
+    """
+    Convierte un DiGraph en GeoDataFrame y lo plotea.
+    mostrar_nombres: si True, muestra nombres de hospitales
+    mostrar_peso: si True, muestra grosor y número de arista
+    """
+    # nodos
+    gdf_nodes = gpd.GeoDataFrame(
+        hosp_coords,
+        geometry=gpd.points_from_xy(hosp_coords["Longitud"], hosp_coords["Latitud"]),
+        crs="EPSG:4326"
+    ).to_crs(epsg=3857)
+
+    geom_dict = dict(zip(gdf_nodes["Nombre Hospital"], gdf_nodes.geometry))
+
+    edges_list = []
+    for u, v, d in G.edges(data=True):
+        if u in geom_dict and v in geom_dict:
+            edges_list.append({
+                "geometry": LineString([geom_dict[u], geom_dict[v]]),
+                "weight": float(d["weight"])
+            })
+
+    gdf_edges = gpd.GeoDataFrame(edges_list, geometry="geometry", crs="EPSG:3857")
+
+    fig, ax = plt.subplots(figsize=(10,10))
+
+    # plotear aristas
+    if not gdf_edges.empty:
+        lw_series = gdf_edges["weight"].apply(get_linewidth) if mostrar_peso else 1
+        gdf_edges.plot(ax=ax, linewidth=lw_series, alpha=0.6, color="blue")
+
+        if mostrar_peso:
+            # mostrar el número de peso en el medio de cada arista
+            for _, row in gdf_edges.iterrows():
+                x, y = row.geometry.interpolate(0.5, normalized=True).xy
+                ax.text(x[0], y[0], str(int(row["weight"])), fontsize=9, color="black",
+                        ha="center", va="center", zorder=5, backgroundcolor="white", alpha=0.7)
+
+    # plotear nodos
+    gdf_nodes.plot(ax=ax, color="red", markersize=40, zorder=10)
+
+    # nombres de hospitales
+    if mostrar_nombres:
+        for _, row in gdf_nodes.iterrows():
+            ax.text(row.geometry.x, row.geometry.y, row["Nombre Hospital"], fontsize=8,
+                    ha="right", zorder=20)
+
+    # basemap
+    ctx.add_basemap(ax, source=ctx.providers.OpenStreetMap.Mapnik)
+    ax.axis("off")
+
+    return fig, ax
 
 # ---------------------------------------------------------
 # funciones de análisis individual del paciente
@@ -261,8 +419,10 @@ def analizar_red_hospitalaria(
     fecha_inicio=None, fecha_fin=None,
     filtrar_motivo=None,
     hospital_origen=None, hospital_destino=None,
-    peso_minimo=1, modo="estatico", mostrar_resumen=True):
-    
+    peso_minimo=1, modo="estatico", mostrar_resumen=True,
+    graficar=True, mostrar_nombres=True, mostrar_peso=True
+):
+    # filtrar traslados según fechas y motivos
     df = traslados.copy()
     if fecha_inicio is not None:
         df = df[df["Fecha egreso"] >= pd.to_datetime(fecha_inicio)]
@@ -274,44 +434,45 @@ def analizar_red_hospitalaria(
         df = df[df["Nombre Hospital"] == hospital_origen]
     if hospital_destino is not None:
         df = df[df["Hospital siguiente"] == hospital_destino]
+
     if mostrar_resumen:
         print("Registros luego de filtros:", len(df))
         print("Hospitales origen únicos:", df["Nombre Hospital"].nunique())
         print("Hospitales destino únicos:", df["Hospital siguiente"].nunique())
+
+    # construir edges
     edges = df.groupby(["Nombre Hospital", "Hospital siguiente"]).size().reset_index(name="weight")
     edges = edges[edges["weight"] >= peso_minimo]
+
+    # construir grafo
     G = nx.DiGraph()
     for _, row in edges.iterrows():
         G.add_edge(row["Nombre Hospital"], row["Hospital siguiente"], weight=row["weight"])
+
     if mostrar_resumen:
         print("Nodos en red:", G.number_of_nodes())
         print("Aristas en red:", G.number_of_edges())
-    if modo == "estatico":
-        plot_edges_geo(G, hosp_coords)
-    elif modo == "mapa":
-        pass # plot_red_con_mapa(G, hosp_coords)
-    elif modo == "interactivo":
-        pass # return plot_red_interactiva(G, hosp_coords)
+
+    # graficar solo si graficar=True
+    if graficar:
+        if modo == "estatico":
+            fig, ax = plot_edges_geo(
+                G, hosp_coords,
+                mostrar_nombres=mostrar_nombres,
+                mostrar_peso=mostrar_peso
+            )
+        elif modo == "mapa":
+            fig, ax = plot_red_con_mapa(
+                G, hosp_coords,
+                mostrar_nombres=mostrar_nombres,
+                mostrar_peso=mostrar_peso
+            )
+        elif modo == "interactivo":
+            return plot_red_interactiva(G, hosp_coords)
+
     return G, edges
 
 
 # ---------------------------------------------------------
 # funciones de carga y limpieza geoespacial
 # ---------------------------------------------------------
-def limpiar_nombre(texto):
-    """Pasa el texto a mayúsculas, quita acentos y símbolos"""
-    if texto is None:
-        return ""
-    texto = texto.upper()
-    texto = ''.join(
-        c for c in unicodedata.normalize('NFD', texto)
-        if unicodedata.category(c) != 'Mn'
-    )
-    texto = re.sub(r'[^A-Z\s]', '', texto)
-    return texto.strip()
-
-def cargar_municipios(path_shp):
-    """Carga un shapefile y crea columna limpia"""
-    municipios = gpd.read_file(path_shp)
-    municipios["nam_limpio"] = municipios["nam"].apply(limpiar_nombre)
-    return municipios
