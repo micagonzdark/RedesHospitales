@@ -36,7 +36,7 @@ df_traslados = bases.reconstruir_traslados(df_pacientes)
     # Find the setup cell and replace it. Let's assume it's the first code cell.
     for cell in nb01.cells:
         if cell.cell_type == 'code':
-            if 'df_pacientes = pd.read_excel("..\data\pacientes.xlsx")' in cell.source or 'date_cols' in cell.source:
+            if ('pd.read_excel' in cell.source and 'pacientes.xlsx' in cell.source) or 'date_cols' in cell.source:
                 cell.source = code_01_setup
                 break
 

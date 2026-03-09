@@ -12,38 +12,16 @@ import contextily as ctx
 import sys
 sys.path.append("../scripts")  # carpeta donde está bases.py
 import bases
-df_pacientes = pd.read_excel("..\data\pacientes.xlsx")
-print("Cantidad de registros:", len(df_pacientes))
-df_pacientes.head()
 
-# ------------------------------------------------------------
-# ------------------------------------------------------------
+# Cargar y limpiar datos centralizadamente vía bases.py
+df_pacientes = bases.cargar_datos_pacientes("../data/pacientes.xlsx")
+print("Cantidad de registros de pacientes válidos:", len(df_pacientes))
 
-hosp_coord = pd.read_csv("..\data\hospitales_coordenadas.csv")
-print("Cantidad de registros:", len(hosp_coord))
-hosp_coord.head()
-# Limpiar Id inválidos
-df_pacientes = df_pacientes[df_pacientes["Id"].astype(str).str.match(r"[A-Za-z0-9]+")]
-
-# Normalizar nombres de hospitales
-df_pacientes["Nombre Hospital"] = (
-    df_pacientes["Nombre Hospital"]
-    .str.strip()
-    .str.upper()
-)
-
-# Convertir fechas
-date_cols = ["Fecha inicio", "Fecha egreso", "Última actualización"]
-for c in date_cols: df_pacientes[c] = pd.to_datetime(df_pacientes[c], errors="coerce")
-
-# Duración de internacion
-df_pacientes["Duracion días"] = (df_pacientes["Fecha egreso"] - df_pacientes["Fecha inicio"]).dt.days
+hosp_coord = bases.cargar_coordenadas("../data/hospitales_coordenadas.csv")
+print("Cantidad de hospitales coordenadas válidos:", len(hosp_coord))
 
 # Valores nulos
 print(df_pacientes.isna().sum())
-
-#print("A continuacion, presentamos los motivos de egreso para cada instancia del dataframe")
-#print(df["Motivo"].value_counts())
 
 # reconstruir traslados usando la función de BASES
 df_traslados = bases.reconstruir_traslados(df_pacientes)
@@ -65,25 +43,11 @@ G, edges = bases.generar_red(df_traslados, fecha_inicio="2020-06-01", fecha_fin=
 fig, ax = bases.plot_red_con_mapa(G, hosp_coord)
 plt.show()
 
-hosp_coords = pd.read_csv("..\data\hospitales_coordenadas.csv")
-
-hosp_coords["Latitud"] = (
-    hosp_coords["Latitud"].astype(str)
-    .astype(float)
-)
-
-hosp_coords["Longitud"] = (
-    hosp_coords["Longitud"].astype(str)
-    .str.replace(",", ".")
-    .astype(float)
-)
-
-hosp_coords["Nombre Hospital"] = hosp_coords["Nombre Hospital"].str.strip()
 gdf_hosp = gpd.GeoDataFrame(
-    hosp_coords,
+    hosp_coord, # Usando hosp_coord que ya fue limpiada mediante bases.py
     geometry=gpd.points_from_xy(
-        hosp_coords["Longitud"],
-        hosp_coords["Latitud"]
+        hosp_coord["Longitud"],
+        hosp_coord["Latitud"]
     ),
     crs="EPSG:4326"
 )

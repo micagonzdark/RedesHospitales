@@ -29,19 +29,8 @@ sns.set_theme(style="whitegrid")
 plt.rcParams['figure.figsize'] = (10, 6)
 
 # Carga de datos
-df_pacientes = pd.read_excel("../data/pacientes.xlsx")
-hosp_coords = pd.read_csv("../data/hospitales_coordenadas.csv")
-
-# Funciones de limpieza basadas en el código existente
-df_pacientes = df_pacientes[df_pacientes["Id"].astype(str).str.match(r"[A-Za-z0-9]+")]
-df_pacientes["Nombre Hospital"] = df_pacientes["Nombre Hospital"].str.strip().str.upper()
-date_cols = ["Fecha inicio", "Fecha egreso", "Última actualización"]
-for c in date_cols:
-    df_pacientes[c] = pd.to_datetime(df_pacientes[c], errors="coerce")
-df_pacientes["Duracion días"] = (df_pacientes["Fecha egreso"] - df_pacientes["Fecha inicio"]).dt.days
-
-# Agregamos feature de fallecimiento
-df_pacientes["murio"] = df_pacientes["Motivo"].astype(str).str.contains("fallec|muert", case=False, na=False)
+df_pacientes = bases.cargar_datos_pacientes("../data/pacientes.xlsx")
+hosp_coords = bases.cargar_coordenadas("../data/hospitales_coordenadas.csv")
 
 # Reconstruir traslados
 df_traslados = bases.reconstruir_traslados(df_pacientes)
@@ -52,11 +41,7 @@ print(f"Total traslados reconstruidos: {len(df_traslados)}")
 text_mapa = "## Mapa con los hospitales y municipios alrededor\nUtilizando geopandas y las coordenadas provistas."
 
 code_mapa = """\
-# Limpiar y preparar coordenadas
-hosp_coords["Latitud"] = hosp_coords["Latitud"].astype(str).str.replace(",", ".").astype(float)
-hosp_coords["Longitud"] = hosp_coords["Longitud"].astype(str).str.replace(",", ".").astype(float)
-hosp_coords["Nombre Hospital"] = hosp_coords["Nombre Hospital"].str.strip()
-
+# Usar coordenadas ya limpiadas por bases.py
 gdf_hosp = gpd.GeoDataFrame(
     hosp_coords,
     geometry=gpd.points_from_xy(hosp_coords["Longitud"], hosp_coords["Latitud"]),
