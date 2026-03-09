@@ -19,3 +19,9 @@ docs/*
 docs/estado-inicial.txt
 docs/mails.txt
 results/2026-03-09_hallazgos_eda.md
+
+data/shapefiles/*
+
+# scripts ignorados
+scripts/generate_eda.py
+scripts/refactor_notebooks.py
