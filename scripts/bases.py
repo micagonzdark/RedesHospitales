@@ -23,6 +23,7 @@ from shapely.geometry import LineString
 import contextily as ctx
 import unicodedata
 import re
+import seaborn as sns
 # ---------------------------------------------------------
 
 # ---------------------------------------------------------
@@ -105,7 +106,7 @@ def cargar_municipios(path_shp):
     return municipios
 
 # ---------------------------------------------------------
-# funciones de red hospitalaria
+# funciones de creacion de la red hospitalaria
 # ---------------------------------------------------------
 
 # obsoleta. Es una funcion mas basica que analizar red. Por el momento usamos directo analizar red
@@ -381,6 +382,49 @@ def plot_red_gdf(G, hosp_coords, mostrar_nombres=True, mostrar_peso=True):
     return fig, ax
 
 
+def plot_red_sobre_amba(gdf_edges, gdf_nodes, municipios_amba, mostrar_nombres=True, mostrar_peso=True):
+    """
+    Plotea la red hospitalaria sobre los municipios del AMBA.
+    gdf_edges: GeoDataFrame con aristas (LineString) y columna 'weight'
+    gdf_nodes: GeoDataFrame con hospitales (Point) y columna 'Nombre Hospital'
+    municipios_amba: GeoDataFrame de polígonos de AMBA
+    """
+    # Unificar CRS
+    municipios = municipios_amba.to_crs(epsg=3857)
+    hospitales = gdf_nodes.to_crs(epsg=3857)
+    edges = gdf_edges.to_crs(epsg=3857)
+
+    fig, ax = plt.subplots(figsize=(12,12))
+
+    # 1. Plotear polígonos de municipios
+    municipios.plot(ax=ax, alpha=0.3, edgecolor="black", color="lightgrey")
+
+    # 2. Plotear aristas
+    if not edges.empty:
+        lw_series = edges["weight"].apply(lambda w: np.log1p(w)*1.5) if mostrar_peso else 1
+        edges.plot(ax=ax, linewidth=lw_series, color="blue", alpha=0.6, zorder=1)
+    
+    # 3. Plotear nodos
+    hospitales.plot(ax=ax, color="red", markersize=50, zorder=2)
+
+    # 4. Nombres de hospitales
+    if mostrar_nombres:
+        for _, row in hospitales.iterrows():
+            if row.geometry is not None and not row.geometry.is_empty:
+                ax.annotate(
+                    row["Nombre Hospital"],
+                    xy=(row.geometry.x, row.geometry.y),
+                    xytext=(5,5),
+                    textcoords="offset points",
+                    fontsize=8,
+                    ha="left",
+                    va="bottom"
+                )
+
+    ax.set_title("Red hospitalaria sobre AMBA", fontsize=16)
+    ax.axis("off")
+    plt.show()
+
 # ---------------------------------------------------------
 # funciones de análisis individual del paciente
 # ---------------------------------------------------------
@@ -473,7 +517,342 @@ def analizar_red_hospitalaria(
 
     return G, edges
 
+# ---------------------------------------------------------
+# funciones de resumen de traslados
+# ---------------------------------------------------------
+
+def resumen_traslados(
+    df,
+    col_hospital="Nombre Hospital",
+    imprimir=True
+):
+    """
+    imprime resumen básico del dataset de traslados
+    """
+
+    total_traslados = len(df)
+    hospitales_unicos = df[col_hospital].nunique()
+
+    if imprimir:
+        print(f"Total de traslados: {total_traslados}")
+        print(f"Cantidad de hospitales únicos: {hospitales_unicos}")
+
+    return {
+        "total_traslados": total_traslados,
+        "hospitales_unicos": hospitales_unicos
+    }
+
+def traslados_por_mes(
+    df,
+    col_fecha="Fecha egreso",
+    graficar=True,
+    figsize=(12,5),
+    marker="o"
+):
+    """
+    cantidad de traslados por mes
+    """
+
+    df = df.copy()
+    df[col_fecha] = pd.to_datetime(df[col_fecha])
+
+    serie = (
+        df.groupby(df[col_fecha].dt.to_period("M"))
+        .size()
+    )
+
+    serie.index = serie.index.astype(str)
+
+    if graficar:
+
+        sns.set_style("whitegrid")
+
+        plt.figure(figsize=figsize)
+
+        sns.lineplot(
+            x=serie.index,
+            y=serie.values,
+            marker=marker
+        )
+
+        plt.xticks(rotation=45)
+        plt.title("Traslados por mes")
+        plt.ylabel("Cantidad de traslados")
+        plt.xlabel("Mes")
+
+        plt.tight_layout()
+        plt.show()
+
+    return serie
+
+def distribucion_traslados_paciente(
+    df,
+    col_id="Id",
+    valores=[1,2,3],
+    graficar=True,
+    figsize=(8,5)
+):
+    """
+    distribución de cantidad de traslados por paciente
+    """
+
+    traslados_por_paciente = df.groupby(col_id).size()
+
+    conteo = traslados_por_paciente.value_counts().sort_index()
+    conteo = conteo.loc[conteo.index.isin(valores)]
+
+    if graficar:
+
+        sns.set_style("whitegrid")
+
+        plt.figure(figsize=figsize)
+
+        ax = sns.barplot(
+            x=conteo.index,
+            y=conteo.values
+        )
+
+        plt.title("Cantidad de pacientes por número de traslados")
+        plt.xlabel("Número de traslados")
+        plt.ylabel("Número de pacientes")
+
+        for i, v in enumerate(conteo.values):
+            ax.text(i, v, str(v), ha="center", va="bottom")
+
+        plt.show()
+
+    stats = {
+        "promedio": traslados_por_paciente.mean(),
+        "desvio": traslados_por_paciente.std()
+    }
+
+    print("Promedio de traslados por paciente:", stats["promedio"])
+    print("Desvío estándar:", stats["desvio"])
+
+    return conteo, stats
+
+def tiempo_total_paciente(
+    df,
+    col_id="Id",
+    col_dias="Duracion días",
+    max_dias=50,           # límite visual por defecto
+    quantile_outlier=0.99,
+    graficar=True,
+    figsize=(10,5)         # tamaño fijo
+):
+    """
+    Distribución del tiempo total en el sistema por paciente
+    cada barra corresponde a un número entero de días
+    muestra el valor arriba de cada barra
+    """
+
+    import seaborn as sns
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    # tiempo total por paciente
+    tiempo_sistema = df.groupby(col_id)[col_dias].sum()
+    tiempo_sistema = tiempo_sistema[tiempo_sistema < max_dias]
+
+    # límite para outliers
+    limite = tiempo_sistema.quantile(quantile_outlier)
+    limite = min(limite, max_dias)
+
+    if graficar:
+        sns.set_style("whitegrid")
+
+        # bins enteros hasta el límite
+        max_bin = int(np.ceil(limite))
+        bins = np.arange(0, max_bin + 1)
+
+        plt.figure(figsize=figsize)
+        ax = sns.histplot(
+            tiempo_sistema,
+            bins=bins,
+            discrete=True
+        )
+
+        plt.xlim(0, limite)
+        plt.axvline(
+            limite,
+            color="red",
+            linestyle="--",
+            label=f"percentil {int(quantile_outlier*100)}"
+        )
+
+        # numeritos arriba de cada barra
+        for p in ax.patches:
+            height = p.get_height()
+            if height > 0:
+                ax.text(
+                    p.get_x() + p.get_width()/2,
+                    height,
+                    str(int(height)),
+                    ha="center",
+                    va="bottom",
+                    fontsize=8
+                )
+
+        plt.title("Tiempo total dentro del sistema por paciente")
+        plt.xlabel("Días totales")
+        plt.ylabel("Número de pacientes")
+        plt.legend()
+        plt.show()
+
+    return tiempo_sistema, limite
+
+
 
 # ---------------------------------------------------------
-# funciones de carga y limpieza geoespacial
+# funciones de analisis hospitalario / EDA
 # ---------------------------------------------------------
+def traslados_por_hospital(df, col_hospital="Nombre Hospital", hospitales=None, graficar=True):
+    """
+    cuenta traslados por hospital
+    """
+
+    data = df.copy()
+
+    if hospitales is not None:
+        data = data[data[col_hospital].isin(hospitales)]
+
+    resultado = (
+        data.groupby(col_hospital)
+        .size()
+        .sort_values(ascending=False)
+    )
+
+    if graficar:
+        import matplotlib.pyplot as plt
+
+        plt.figure(figsize=(12,5))
+        resultado.plot(kind="bar")
+        plt.title("Cantidad de traslados por hospital")
+        plt.ylabel("Cantidad de traslados")
+        plt.show()
+
+    return resultado
+
+def tiempo_promedio_por_hospital(
+    df,
+    col_hospital="Nombre Hospital",
+    col_dias="Duracion días",
+    hospitales=None,
+    quantile_outlier=0.99,
+    graficar=True
+):
+    """
+    calcula tiempo promedio por hospital eliminando outliers
+    """
+
+    data = df.copy()
+
+    if hospitales is not None:
+        data = data[data[col_hospital].isin(hospitales)]
+
+    limite = data[col_dias].quantile(quantile_outlier)
+    data = data[data[col_dias] <= limite]
+
+    resultado = (
+        data.groupby(col_hospital)[col_dias]
+        .mean()
+        .sort_values(ascending=False)
+    )
+
+    if graficar:
+        import matplotlib.pyplot as plt
+
+        plt.figure(figsize=(12,5))
+        resultado.plot(kind="bar", color="orange")
+        plt.title("Tiempo promedio en hospital por paciente")
+        plt.ylabel("Días promedio")
+        plt.show()
+
+    return resultado
+
+
+def muertes_por_hospital(
+    df,
+    col_hospital="Nombre Hospital",
+    col_muerte="murio",
+    hospitales=None,
+    graficar=True
+):
+    """
+    cuenta fallecidos por hospital
+    """
+
+    data = df.copy()
+
+    if hospitales is not None:
+        data = data[data[col_hospital].isin(hospitales)]
+
+    resultado = (
+        data[data[col_muerte]]
+        .groupby(col_hospital)
+        .size()
+        .sort_values(ascending=False)
+    )
+
+    if graficar:
+        import matplotlib.pyplot as plt
+
+        plt.figure(figsize=(12,5))
+        resultado.plot(kind="bar", color="red")
+        plt.title("Cantidad de fallecidos por hospital")
+        plt.ylabel("Cantidad de fallecidos")
+        plt.show()
+
+    return resultado
+
+def distribucion_edades_por_hospital(
+    df,
+    col_hospital="Nombre Hospital",
+    col_edad="Edad",
+    hospitales=None,
+    bins=20,
+    graficar=True
+):
+    """
+    calcula distribución de edades por hospital
+    """
+
+    data = df.copy()
+
+    if hospitales is not None:
+        data = data[data[col_hospital].isin(hospitales)]
+
+    resultado = (
+        data.groupby(col_hospital)[col_edad]
+        .describe()
+        .sort_values("mean", ascending=False)
+    )
+
+    if graficar:
+        import matplotlib.pyplot as plt
+
+        plt.figure(figsize=(12,5))
+        data[col_edad].hist(bins=bins, edgecolor="white")
+        plt.title("Distribución de edades")
+        plt.xlabel("Edad")
+        plt.ylabel("Frecuencia")
+        plt.show()
+
+    return resultado
+
+### ejemplos de uso:
+#bases.traslados_por_hospital(df_traslados)
+#bases.tiempo_promedio_por_hospital(df_traslados)
+#bases.muertes_por_hospital(df_pacientes)
+
+# hosp = [
+#     "HOSPITAL POSADAS",
+#     "HOSPITAL ITALIANO",
+#     "HOSPITAL GARRAHAN"
+# ]
+
+# bases.traslados_por_hospital(df_traslados, hospitales=hosp)
+
+# bases.tiempo_promedio_por_hospital(df_traslados, hospitales=hosp)
+
+# bases.muertes_por_hospital(df_pacientes, hospitales=hosp)
