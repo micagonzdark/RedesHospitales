@@ -380,6 +380,7 @@ def plot_red_gdf(G, hosp_coords, mostrar_nombres=True, mostrar_peso=True):
 
     return fig, ax
 
+
 # ---------------------------------------------------------
 # funciones de análisis individual del paciente
 # ---------------------------------------------------------
