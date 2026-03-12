@@ -75,6 +75,10 @@ def cargar_municipios(path_shp):
     municipios = gpd.read_file(path_shp)
     municipios["nam_limpio"] = municipios["nam"].apply(limpiar_nombre)
     return municipios
+
+def cargar_provincias(path_shp):
+    provincias = gpd.read_file(path_shp)
+    return provincias
 # ---------------------------------------------------------
 
 # ---------------------------------------------------------
