@@ -96,6 +96,12 @@ def cargar_provincias(path_shp):
 def es_upa(nombre):
     """Devuelve True si el nombre comienza con 'UPA', ignorando mayúsculas/minúsculas."""
     return nombre.upper().startswith("UPA")
+
+def ajustar_coordenadas_upa(coords_df):
+    coords_mod = coords_df.copy()
+    mask_upa = coords_mod["Nombre Hospital"].str.upper().str.contains("UPA")
+    coords_mod.loc[mask_upa, "Longitud"] -= 0.01  # ajustar según corresponda
+    return coords_mod
 # ---------------------------------------------------------
 
 # ---------------------------------------------------------
