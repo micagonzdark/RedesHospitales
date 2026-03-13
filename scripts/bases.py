@@ -13,6 +13,7 @@ import contextily as ctx
 import unicodedata
 import re
 import seaborn as sns
+from matplotlib.patches import Patch
 # ---------------------------------------------------------
 
 # ---------------------------------------------------------
@@ -49,6 +50,9 @@ def draw_arrow(ax, line, lw=1, color="blue"):
         xytext=(x[-2], y[-2]),
         arrowprops=dict(arrowstyle="->", color=color, lw=lw)
     )
+
+
+
 # ---------------------------------------------------------
 
 # ---------------------------------------------------------
@@ -597,6 +601,10 @@ def plot_red_sobre_amba(gdf_edges, gdf_nodes, municipios_amba, mostrar_nombres=T
         # normalizar pesos en escala logarítmica
         norm = colors.LogNorm(vmin=max(edges["weight"].min(), 1), vmax=edges["weight"].max())
         cmap = cm.get_cmap("plasma")
+        
+        sm = cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])  # necesario para colorbar
+
 
         for _, row in edges.iterrows():
             line = row.geometry
@@ -608,8 +616,33 @@ def plot_red_sobre_amba(gdf_edges, gdf_nodes, municipios_amba, mostrar_nombres=T
             if mostrar_peso:
                 xm, ym = line.interpolate(0.5, normalized=True).coords[0]
                 ax.text(xm, ym, str(row["weight"]), fontsize=8, color=color)
+        cbar = plt.colorbar(sm, ax=ax, fraction=0.03, pad=0.04)
+        cbar.set_label("Cantidad de traslados (log scale)")
 
-    hospitales.plot(ax=ax, color="red", markersize=50, zorder=2)
+    # -------------------------
+    # Plot nodos por tipo
+    # -------------------------
+    def get_node_color(name):
+        if "UPA" in name.upper():
+            return "green"
+        elif "MODULO HOSPITALARIO" in name.upper():
+            return "orange"
+        else:
+            return "blue"
+
+    node_colors = [get_node_color(n) for n in hospitales["Nombre Hospital"]]
+    hospitales.plot(ax=ax, color=node_colors, markersize=50, zorder=2)
+
+    # -------------------------
+    # Leyenda de nodos
+    # -------------------------
+    legend_elements = [
+        Patch(facecolor="green", edgecolor="black", label="UPA"),
+        Patch(facecolor="orange", edgecolor="black", label="Módulo Hospitalario"),
+        Patch(facecolor="blue", edgecolor="black", label="Otros")
+    ]
+    ax.legend(handles=legend_elements, loc="upper right")
+
     if mostrar_nombres:
         for _, row in hospitales.iterrows():
             if row.geometry is not None:
@@ -620,8 +653,7 @@ def plot_red_sobre_amba(gdf_edges, gdf_nodes, municipios_amba, mostrar_nombres=T
                     textcoords="offset points",
                     fontsize=8
                 )
-
-    ax.set_title("Red hospitalaria sobre AMBA (colores por traslados)")
+    ax.set_title("Red hospitalaria sobre AMBA (colores por traslados y tipo de hospital)")
     ax.axis("off")
     plt.show()
 
