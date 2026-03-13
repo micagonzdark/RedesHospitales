@@ -30,7 +30,7 @@ def limpiar_nombre(texto):
         c for c in unicodedata.normalize('NFD', texto)
         if unicodedata.category(c) != 'Mn'
     )
-    texto = re.sub(r'[^A-Z\s]', '', texto)
+    texto = re.sub(r'[^A-Z0-9\s]', '', texto)
     return texto.strip()
 
 def coords_a_dict(hosp_coords):
@@ -585,7 +585,6 @@ def plot_red_con_mapa(G, hosp_coords, mostrar_nombres=True, mostrar_peso=True):
 # -------------------------------------------------------
 # plot sobre AMBA
 # -------------------------------------------------------
-
 def plot_red_sobre_amba(gdf_edges, gdf_nodes, municipios_amba, mostrar_nombres=True, mostrar_peso=True):
     municipios = municipios_amba.to_crs(epsg=3857)
     hospitales = gdf_nodes.to_crs(epsg=3857)
@@ -595,15 +594,20 @@ def plot_red_sobre_amba(gdf_edges, gdf_nodes, municipios_amba, mostrar_nombres=T
     municipios.plot(ax=ax, alpha=0.3, edgecolor="black", color="lightgrey")
 
     if not edges.empty:
+        # normalizar pesos en escala logarítmica
+        norm = colors.LogNorm(vmin=max(edges["weight"].min(), 1), vmax=edges["weight"].max())
+        cmap = cm.get_cmap("plasma")
+
         for _, row in edges.iterrows():
             line = row.geometry
             lw = np.log1p(row["weight"]) * 1.5 if mostrar_peso else 1
+            color = cmap(norm(max(row["weight"], 1)))  # color según peso log
             x, y = line.xy
-            ax.plot(x, y, linewidth=lw, alpha=0.6, color="blue")
+            ax.plot(x, y, linewidth=lw, alpha=0.7, color=color)
             draw_arrow(ax, line, lw)
             if mostrar_peso:
                 xm, ym = line.interpolate(0.5, normalized=True).coords[0]
-                ax.text(xm, ym, str(row["weight"]), fontsize=8, color="blue")
+                ax.text(xm, ym, str(row["weight"]), fontsize=8, color=color)
 
     hospitales.plot(ax=ax, color="red", markersize=50, zorder=2)
     if mostrar_nombres:
@@ -617,7 +621,7 @@ def plot_red_sobre_amba(gdf_edges, gdf_nodes, municipios_amba, mostrar_nombres=T
                     fontsize=8
                 )
 
-    ax.set_title("Red hospitalaria sobre AMBA")
+    ax.set_title("Red hospitalaria sobre AMBA (colores por traslados)")
     ax.axis("off")
     plt.show()
 
