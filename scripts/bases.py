@@ -20,6 +20,7 @@ from matplotlib.patches import Patch
 # funciones utilitarias
 # ---------------------------------------------------------
 def get_linewidth(weight):
+    """Calcula grosor de línea proporcional al peso"""
     return np.log1p(weight) * 1.5
 
 def limpiar_nombre(texto):
@@ -32,18 +33,19 @@ def limpiar_nombre(texto):
         if unicodedata.category(c) != 'Mn'
     )
     texto = re.sub(r'[^A-Z0-9\s]', '', texto)
+    texto = re.sub(r'\s+', ' ', texto)
     return texto.strip()
 
 def coords_a_dict(hosp_coords):
-    return {row["Nombre Hospital"]: (row["Latitud"], row["Longitud"])
-            for _, row in hosp_coords.iterrows()}
-
-
+    """Convierte un dataframe de coordenadas en diccionario {hospital: (lat, lon)}"""
+    return dict(zip(
+        hosp_coords["Nombre Hospital"],
+        zip(hosp_coords["Latitud"], hosp_coords["Longitud"])
+    ))
 
 def draw_arrow(ax, line, lw=1, color="blue"):
-
+    """Dibuja flecha sobre LineString en matplotlib"""
     x, y = line.xy
-
     ax.annotate(
         "",
         xy=(x[-1], y[-1]),
@@ -61,7 +63,7 @@ def draw_arrow(ax, line, lw=1, color="blue"):
 def limpiar_pacientes(df):
     df_clean = df[df["Id"].astype(str).str.match(r"[A-Za-z0-9]+")].copy()
     if "Nombre Hospital" in df_clean.columns:
-        df_clean["Nombre Hospital"] = df_clean["Nombre Hospital"].str.strip().str.upper()
+        df_clean["Nombre Hospital"] = df_clean["Nombre Hospital"].apply(limpiar_nombre)
     date_cols = ["Fecha inicio", "Fecha egreso", "Última actualización"]
     for c in date_cols:
         if c in df_clean.columns:
@@ -94,17 +96,17 @@ def cargar_municipios(path_shp):
     return municipios
 
 def cargar_provincias(path_shp):
-    provincias = gpd.read_file(path_shp)
-    return provincias
+    return gpd.read_file(path_shp)
 
 def es_upa(nombre):
-    """Devuelve True si el nombre comienza con 'UPA', ignorando mayúsculas/minúsculas."""
+    """True si es UPA (el nombre comienza con 'UPA')"""
     return nombre.upper().startswith("UPA")
 
 def ajustar_coordenadas_upa(coords_df):
+    """Desplaza levemente UPA para evitar superposición en mapas"""
     coords_mod = coords_df.copy()
     mask_upa = coords_mod["Nombre Hospital"].str.upper().str.contains("UPA")
-    coords_mod.loc[mask_upa, "Longitud"] -= 0.01  # ajustar según corresponda
+    coords_mod.loc[mask_upa, "Longitud"] -= 0.01
     return coords_mod
 # ---------------------------------------------------------
 
@@ -122,14 +124,8 @@ def reconstruir_traslados(df):
         (df["Hospital siguiente"].notna()) & 
         (df["Hospital siguiente"] != df["Nombre Hospital"])
     ].copy()
-    traslados["Nombre Hospital"] = traslados["Nombre Hospital"].apply(limpiar_nombre)
-    traslados["Hospital siguiente"] = traslados["Hospital siguiente"].apply(limpiar_nombre)
     return traslados
 
-def normalizar_hospitales(df):
-    df = df.copy()
-    df["Nombre Hospital"] = df["Nombre Hospital"].apply(limpiar_nombre)
-    return df
 # ---------------------------------------------------------
 
 # ---------------------------------------------------------
@@ -168,6 +164,7 @@ def historia_clinica(df, paciente_id):
 # funciones de analisis hospitalario / EDA
 # ---------------------------------------------------------
 def traslados_por_hospital(df, col_hospital="Nombre Hospital", hospitales=None, graficar=True):
+    """Devuelve serie con cantidad de traslados por hospital"""    
     data = df.copy()
     if hospitales is not None:
         data = data[data[col_hospital].isin(hospitales)]
@@ -338,6 +335,83 @@ def tiempo_total_paciente(df, col_id="Id", col_dias="Duracion días", max_dias=5
         plt.legend()
         plt.show()
     return tiempo_sistema, limite
+
+
+def pacientes_con_muchos_traslados(df, col_id="Id", minimo=3):
+    traslados_por_paciente = df.groupby(col_id).size()
+    ids = traslados_por_paciente[traslados_por_paciente >= minimo].index
+    return df[df[col_id].isin(ids)]
+
+def imprimir_recorridos_pacientes(df, col_id="Id",
+                                  col_origen="Hospital Origen",
+                                  col_destino="Hospital Destino",
+                                  col_fecha=None):
+
+    for paciente_id, grupo in df.groupby(col_id):
+
+        if col_fecha is not None and col_fecha in df.columns:
+            grupo = grupo.sort_values(col_fecha)
+
+        print("\n" + "="*50)
+        print(f"Paciente {paciente_id} - {len(grupo)} traslados")
+
+        recorrido = [grupo.iloc[0][col_origen]]
+
+        for _, row in grupo.iterrows():
+            recorrido.append(row[col_destino])
+
+        print(" -> ".join(recorrido))
+
+def mostrar_recorridos_estado(df, col_id="Id"):
+    columnas = [
+        "Nombre Hospital", "Fecha inicio", "Estado al ingreso", 
+        "Tipo al ingreso", "Último estado", "Último tipo",
+        "Pasó por Críticas", "Pasó por Intermedias", "Pasó por Generales",
+        "dias_entre_hospitales"
+    ]
+    for paciente_id, grupo in df.groupby(col_id):
+        grupo = grupo.sort_values("Fecha inicio")
+        print("\n" + "="*60)
+        print(f"Paciente {paciente_id} - {len(grupo)} traslados")
+        display(grupo[columnas])
+
+def graficar_estado_paciente(df, col_id="Id"):
+    estado_map = {"Crítico": 3, "Intermedia": 2, "General": 1}  # asignamos números
+    for paciente_id, grupo in df.groupby(col_id):
+        grupo = grupo.sort_values("Fecha inicio")
+        estados = grupo["Estado al ingreso"].map(estado_map)
+        hospitales = grupo["Nombre Hospital"]
+        plt.figure(figsize=(8, 3))
+        plt.plot(range(1, len(estados)+1), estados, marker='o', linestyle='-')
+        plt.xticks(range(1, len(estados)+1), hospitales, rotation=45, ha="right")
+        plt.yticks([1,2,3], ["General","Intermedia","Crítico"])
+        plt.title(f"Evolución de estado - Paciente {paciente_id}")
+        plt.xlabel("Traslado")
+        plt.ylabel("Estado")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+
+from plotly.sankey import Sankey
+import plotly.graph_objects as go
+
+def sankey_pacientes(df):
+    df_pairs = df[df["Hospital siguiente"].notna()][["Nombre Hospital", "Hospital siguiente"]]
+    df_pairs = df_pairs.groupby(["Nombre Hospital", "Hospital siguiente"]).size().reset_index(name="count")
+    
+    labels = list(pd.concat([df_pairs["Nombre Hospital"], df_pairs["Hospital siguiente"]]).unique())
+    label_map = {label:i for i,label in enumerate(labels)}
+    
+    source = df_pairs["Nombre Hospital"].map(label_map)
+    target = df_pairs["Hospital siguiente"].map(label_map)
+    value = df_pairs["count"]
+    
+    fig = go.Figure(data=[go.Sankey(
+        node = {"label": labels},
+        link = {"source": source, "target": target, "value": value}
+    )])
+    fig.update_layout(title_text="Flujo de pacientes con ≥3 traslados", font_size=10)
+    fig.show()
 # ---------------------------------------------------------
 
 # ---------------------------------------------------------
