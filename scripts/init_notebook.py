@@ -80,7 +80,7 @@ def init_notebook(data_path="../data", verbose=True):
 
     _setup_paths()
 
-    import bases  # import aca para evitar problemas de path
+    from . import bases  # import aca para evitar problemas de path
 
     _configurar_visualizacion()
 
