@@ -376,24 +376,94 @@ def mostrar_recorridos_estado(df, col_id="Id"):
         display(grupo[columnas])
 
 def graficar_estado_paciente(df, col_id="Id"):
-    estado_map = {"Crítico": 3, "Intermedia": 2, "General": 1}  # asignamos números
+
+    tipo_map = {
+        "criticas": 3,
+        "intermedias": 2,
+        "generales": 1
+    }
+
     for paciente_id, grupo in df.groupby(col_id):
+
         grupo = grupo.sort_values("Fecha inicio")
-        estados = grupo["Estado al ingreso"].map(estado_map)
+
+        niveles = grupo["Tipo al ingreso"].map(tipo_map)
+
+        if niveles.isna().all():
+            continue
+
         hospitales = grupo["Nombre Hospital"]
-        plt.figure(figsize=(8, 3))
-        plt.plot(range(1, len(estados)+1), estados, marker='o', linestyle='-')
-        plt.xticks(range(1, len(estados)+1), hospitales, rotation=45, ha="right")
-        plt.yticks([1,2,3], ["General","Intermedia","Crítico"])
-        plt.title(f"Evolución de estado - Paciente {paciente_id}")
+
+        plt.figure(figsize=(8,3))
+
+        plt.plot(
+            range(1, len(niveles)+1),
+            niveles,
+            marker="o"
+        )
+
+        plt.xticks(
+            range(1, len(niveles)+1),
+            hospitales,
+            rotation=45,
+            ha="right"
+        )
+
+        plt.yticks(
+            [1,2,3],
+            ["Generales","Intermedias","Críticas"]
+        )
+
+        plt.title(f"Paciente {paciente_id}")
         plt.xlabel("Traslado")
-        plt.ylabel("Estado")
-        plt.grid(True)
+        plt.ylabel("Nivel de cama")
+
         plt.tight_layout()
         plt.show()
 
-from plotly.sankey import Sankey
+from IPython.display import display
+
+def graficar_estado_paciente_debug(df, col_id="Id"):
+
+    tipo_map = {
+        "criticas": 3,
+        "intermedias": 2,
+        "generales": 1
+    }
+
+    for paciente_id, grupo in df.groupby(col_id):
+
+        grupo = grupo.sort_values("Fecha inicio")
+
+        niveles = grupo["Tipo al ingreso"].map(tipo_map)
+
+        if niveles.isna().all():
+            continue
+
+        hospitales = grupo["Nombre Hospital"]
+
+        fig, ax = plt.subplots(figsize=(8,3))
+
+        ax.plot(
+            range(1, len(niveles)+1),
+            niveles,
+            marker="o"
+        )
+
+        ax.set_xticks(range(1,len(niveles)+1))
+        ax.set_xticklabels(hospitales, rotation=45, ha="right")
+
+        ax.set_yticks([2,3])
+        ax.set_yticklabels(["Intermedias","Críticas"])
+
+        ax.set_title(f"Paciente {paciente_id}")
+
+        plt.tight_layout()
+
+        display(fig)
+
 import plotly.graph_objects as go
+from IPython.display import display
 
 def sankey_pacientes(df):
     df_pairs = df[df["Hospital siguiente"].notna()][["Nombre Hospital", "Hospital siguiente"]]
