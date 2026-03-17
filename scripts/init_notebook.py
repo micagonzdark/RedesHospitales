@@ -71,7 +71,7 @@ def _cargar_geografia(bases, data_path, verbose=True):
     return hosp_coords, municipios, municipios_amba
 
 
-def init_eda(data_path="../data", verbose=True):
+def init_notebook(data_path="../data", verbose=True):
     """
     inicializa todo el entorno de analisis
     
