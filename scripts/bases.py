@@ -155,19 +155,24 @@ def ajustar_coordenadas_upa(coords_df):
 # ---------------------------------------------------------
 # funciones de reconstrucción de traslados
 # ---------------------------------------------------------
-def reconstruir_traslados(df):
+def reconstruir_traslados_limpio(df):
     df = df.sort_values(["Id", "Fecha inicio"]).copy()
+    # Hospital y fecha siguiente
     df["Hospital siguiente"] = df.groupby("Id")["Nombre Hospital"].shift(-1)
     df["Fecha ingreso siguiente"] = df.groupby("Id")["Fecha inicio"].shift(-1)
+    # dias entre hospitales
     df["dias_entre_hospitales"] = (df["Fecha ingreso siguiente"] - df["Fecha egreso"]).dt.days
+    # marcar traslados
     df["es_traslado"] = df["Motivo"].str.contains("traslad", case=False, na=False)
+    # filtrar traslados válidos
     traslados = df[
-        (df["es_traslado"]) & 
-        (df["Hospital siguiente"].notna()) & 
+        (df["es_traslado"]) &
+        (df["Hospital siguiente"].notna()) &
         (df["Hospital siguiente"] != df["Nombre Hospital"])
     ].copy()
+    # marcar negativos como sospechosos
+    traslados["error_fecha"] = traslados["dias_entre_hospitales"] < 0
     return traslados
-
 # ---------------------------------------------------------
 
 # ---------------------------------------------------------
