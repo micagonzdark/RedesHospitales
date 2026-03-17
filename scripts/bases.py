@@ -53,8 +53,50 @@ def draw_arrow(ax, line, lw=1, color="blue"):
         arrowprops=dict(arrowstyle="->", color=color, lw=lw)
     )
 
+def revisar_dias_negativos(df, max_pacientes=5):
+    """
+    Muestra los pacientes con dias_entre_hospitales negativos.
+    Solo muestra los primeros `max_pacientes`, pero con todo su historial.
+    """
+    # filas con error
+    errores = df[df["dias_entre_hospitales"] < 0]
 
+    print("Cantidad de filas con dias negativos:", len(errores))
 
+    # ids únicos de pacientes con error
+    ids_problema = errores["Id"].unique()
+    print("Pacientes afectados:", len(ids_problema))
+
+    # limitar a los primeros max_pacientes
+    ids_mostrar = ids_problema[:max_pacientes]
+
+    for pid in ids_mostrar:
+        print("\n" + "="*70)
+        print("Paciente:", pid)
+
+        # historial completo del paciente
+        historial = df[df["Id"] == pid].sort_values("Fecha inicio")
+
+        # filas con error
+        print("\nFilas con dias negativos:")
+        display(historial[historial["dias_entre_hospitales"] < 0][[
+            "Nombre Hospital",
+            "Fecha inicio",
+            "Hospital siguiente",
+            "Fecha ingreso siguiente",
+            "dias_entre_hospitales"
+        ]])
+
+        # historial completo
+        print("\nHistorial completo del paciente:")
+        display(historial[[
+            "Nombre Hospital",
+            "Fecha inicio",
+            "Fecha egreso",
+            "Hospital siguiente",
+            "Fecha ingreso siguiente",
+            "dias_entre_hospitales"
+        ]])
 # ---------------------------------------------------------
 
 # ---------------------------------------------------------
