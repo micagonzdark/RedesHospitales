@@ -12,6 +12,26 @@ import unicodedata
 # funciones de limpieza y carga de datos
 # ---------------------------------------------------------
 def limpiar_dataset_pro(df):
+    """
+    Ejecuta el pipeline completo de limpieza y feature engineering
+    sobre el dataset de pacientes.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Dataset original de pacientes.
+
+    Returns
+    -------
+    pd.DataFrame
+        Dataset limpio con variables derivadas listas para análisis.
+
+    Notas
+    -----
+    - No elimina filas (solo transforma).
+    - Agrega variables clave como 'tipo_egreso', 'fallecio' y 'evolucion'.
+    """
+
     df = df.copy()
 
     # 1. renombrar columnas
@@ -86,6 +106,17 @@ def limpiar_dataset_pro(df):
 # funciones de limpieza y carga de datos
 # ---------------------------------------------------------
 def renombrar_columnas(df):
+    """
+    Renombra columnas a un formato consistente (snake_case).
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+
+    Returns
+    -------
+    pd.DataFrame
+    """
     mapping = {
         "Id Hospital": "hospital_id",
         "Nombre Hospital": "hospital_nombre",
@@ -121,6 +152,21 @@ def renombrar_columnas(df):
     return df
 
 def normalizar_strings(df):
+    """
+    Normaliza variables categóricas:
+    - pasa a minúsculas
+    - elimina espacios
+    - convierte 'nan' string a NA real
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+
+    Returns
+    -------
+    pd.DataFrame
+    """
+
     cols = [
         "estado_ingreso", "estado_final",
         "tipo_ingreso", "tipo_final",
@@ -140,6 +186,17 @@ def normalizar_strings(df):
 
 
 def estandarizar_categorias(df):
+    """
+    Estandariza valores categóricos y filtra tipos inválidos.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+
+    Returns
+    -------
+    pd.DataFrame
+    """
     # estados
     df["estado_ingreso"] = df["estado_ingreso"].replace({
         "ocupadas covid": "ocupadas_covid"
@@ -156,6 +213,20 @@ def estandarizar_categorias(df):
     return df
 
 def convertir_tipos(df):
+    """
+    Convierte columnas a tipos de datos correctos:
+    - fechas a datetime
+    - numéricos a float/int
+    - booleanos a True/False
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+
+    Returns
+    -------
+    pd.DataFrame
+    """
     # fechas
     df["fecha_inicio"] = pd.to_datetime(df["fecha_inicio"], errors="coerce")
     df["fecha_egreso"] = pd.to_datetime(df["fecha_egreso"], errors="coerce")
@@ -177,6 +248,17 @@ def convertir_tipos(df):
     return df
 
 def detectar_problemas(df):
+    """
+    Detecta problemas y chequeos básicos en el dataset.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+
+    Returns
+    -------
+    None
+    """
     print("\n--- PROBLEMAS ---")
 
     # pacientes sin fecha inicio
@@ -201,6 +283,17 @@ def detectar_problemas(df):
 
 
 def check_coherencia(df):
+    """
+    Chequea coherencia entre variables derivadas.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+
+    Returns
+    -------
+    None
+    """
     # duración vs fechas
     df["duracion_calculada"] = (df["fecha_egreso"] - df["fecha_inicio"]).dt.days
 
@@ -213,6 +306,19 @@ def check_coherencia(df):
 # ---------------------------------------------------------
 
 def clasificar_egreso(x):
+    """
+    Clasifica el tipo de egreso del paciente.
+
+    Parameters
+    ----------
+    x : str
+        Valor de la columna 'motivo_egreso'.
+
+    Returns
+    -------
+    str
+        Categoría del egreso: 'muerte', 'alta', 'traslado', 'otro', 'desconocido'.
+    """
     if pd.isna(x):
         return "desconocido"
     if x == "muerte":
@@ -226,6 +332,18 @@ def clasificar_egreso(x):
     return "otro"
 
 def clasificar_evolucion(df):
+    """
+    Clasifica la evolución del paciente según el tipo de unidad.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame con columnas 'nivel_ingreso', 'nivel_final' y 'evolucion'.
+    """
     orden = {"generales": 1, "intermedias": 2, "criticas": 3}
 
     df["nivel_ingreso"] = df["tipo_ingreso"].map(orden)
@@ -245,7 +363,72 @@ def clasificar_evolucion(df):
 # chequeos finales
 # ---------------------------------------------------------
 
+def detectar_problemas(df):
+    """
+    Detecta problemas y chequeos básicos en el dataset.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+
+    Returns
+    -------
+    None
+    """
+    print("\n--- PROBLEMAS ---")
+
+    # pacientes sin fecha inicio
+    print("\nSin fecha inicio:")
+    print(df["fecha_inicio"].isna().sum())
+
+    # sin fecha egreso pero con duración
+    print("\nDuración sin egreso:")
+    print(df[(df["fecha_egreso"].isna()) & (df["duracion_dias"].notna())].shape[0])
+
+    # ids raros
+    print("\nIDs no numéricos:")
+    print(df[~df["paciente_id"].astype(str).str.isnumeric()].head())
+
+    # inconsistencias tipo
+    print("\nTipo final distinto sin haber pasado:")
+    mask = (
+        (df["tipo_final"] == "criticas") &
+        (df["paso_criticas"] == False)
+    )
+    print(df[mask].shape[0])
+
+
+def check_coherencia(df):
+    """
+    Chequea coherencia entre variables derivadas.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+
+    Returns
+    -------
+    None
+    """
+    # duración vs fechas
+    df["duracion_calculada"] = (df["fecha_egreso"] - df["fecha_inicio"]).dt.days
+
+    print("\nDiferencias duración:")
+    print((df["duracion_calculada"] - df["duracion_dias"]).describe())
+
+
 def check_post_limpieza(df):
+    """
+    Realiza chequeos post-limpieza en el dataset.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+
+    Returns
+    -------
+    None
+    """
     print("\n--- CHEQUEOS POST-LIMPIEZA ---")
 
     # 1. tipos de datos
