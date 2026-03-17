@@ -155,7 +155,7 @@ def ajustar_coordenadas_upa(coords_df):
 # ---------------------------------------------------------
 # funciones de reconstrucción de traslados
 # ---------------------------------------------------------
-def reconstruir_traslados_limpio(df):
+def reconstruir_traslados(df):
     df = df.sort_values(["Id", "Fecha inicio"]).copy()
     # Hospital y fecha siguiente
     df["Hospital siguiente"] = df.groupby("Id")["Nombre Hospital"].shift(-1)
