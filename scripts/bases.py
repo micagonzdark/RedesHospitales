@@ -155,10 +155,14 @@ def ajustar_coordenadas_upa(coords_df):
 # ---------------------------------------------------------
 # funciones de reconstrucción de traslados
 # ---------------------------------------------------------
-def reconstruir_traslados_mejor(df, max_horas_interno=24):
+def reconstruir_traslados(df, max_horas_interno=24):
     """
-    Reconstruye traslados y marca posibles errores.
+    Reconstruye traslados y marca errores con un indicador de gravedad.
     - max_horas_interno: diferencia máxima (en horas) que puede considerarse como traslado interno casi simultáneo
+    Gravedad:
+        0 → todo ok
+        1 → posible traslado interno / casi simultáneo
+        2 → error grave de fechas
     """
     df = df.sort_values(["Id", "Fecha inicio"]).copy()
     
@@ -169,7 +173,7 @@ def reconstruir_traslados_mejor(df, max_horas_interno=24):
     # dias entre hospitales
     df["dias_entre_hospitales"] = (df["Fecha ingreso siguiente"] - df["Fecha egreso"]).dt.days
     
-    # traslados
+    # marcar traslados
     df["es_traslado"] = df["Motivo"].str.contains("traslad", case=False, na=False)
     
     # filtrar traslados válidos
@@ -179,12 +183,23 @@ def reconstruir_traslados_mejor(df, max_horas_interno=24):
         (df["Hospital siguiente"] != df["Nombre Hospital"])
     ].copy()
     
-    # marcar errores de fechas negativas
+    # error de fechas negativas
     traslados["error_fecha"] = traslados["dias_entre_hospitales"] < 0
     
-    # marcar posibles internos o traslados casi simultáneos
+    # posible interno / traslados casi simultáneos
     delta_horas = (traslados["Fecha ingreso siguiente"] - traslados["Fecha egreso"]).dt.total_seconds() / 3600
     traslados["posible_interno"] = (traslados["error_fecha"]) & (delta_horas.abs() <= max_horas_interno)
+    
+    # gravedad: 0 = ok, 1 = posible interno, 2 = error grave
+    def calcular_gravedad(row):
+        if row["error_fecha"]:
+            if row["posible_interno"]:
+                return 1
+            else:
+                return 2
+        return 0
+    
+    traslados["gravedad_error"] = traslados.apply(calcular_gravedad, axis=1)
     
     return traslados
 # ---------------------------------------------------------
