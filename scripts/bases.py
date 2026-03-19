@@ -1,21 +1,29 @@
-## bases.py
+"""
+bases.py
+--------
+Módulo central de funciones para el análisis de la red hospitalaria.
+Incluye: carga y limpieza de datos, análisis por hospital, trayectorias
+de pacientes, construcción de grafos y visualizaciones geoespaciales.
+"""
 
-# ---------------------------------------------------------
-# librerías necesarias
 import pandas as pd
+import numpy as np
+import re
+import unicodedata
+
 import networkx as nx
 import geopandas as gpd
-import matplotlib.pyplot as plt
-import folium
-import numpy as np
 from shapely.geometry import LineString
-import contextily as ctx
-import unicodedata
-import re
-import seaborn as sns
-from matplotlib.patches import Patch
+
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from matplotlib import cm, colors
-# ---------------------------------------------------------
+import seaborn as sns
+import contextily as ctx
+import folium
+
+import plotly.graph_objects as go
+from IPython.display import display
 
 # ---------------------------------------------------------
 # funciones utilitarias
@@ -458,38 +466,33 @@ def resumen_traslados(df, col_hospital="Nombre Hospital", imprimir=True):
         print(f"Cantidad de hospitales únicos: {hospitales_unicos}")
     return {"total_traslados": total_traslados, "hospitales_unicos": hospitales_unicos}
 
-def traslados_por_mes(df, col_fecha="Fecha egreso", graficar=True, figsize=(12,5), marker="o"):
-    df = df.copy()
-    df[col_fecha] = pd.to_datetime(df[col_fecha])
-    serie = df.groupby(df[col_fecha].dt.to_period("M")).size()
+def traslados_en_el_tiempo(df, col_fecha="Fecha egreso", freq="M", graficar=True, figsize=(12,5), marker="o"):
+    """
+    Agrupa traslados por período de tiempo y opcionalmente los grafica.
+
+    Parámetros
+    ----------
+    freq : str
+        Frecuencia de agrupación: 'D' (día), 'W' (semana), 'M' (mes), 'Q' (trimestre), 'Y' (año).
+    """
+    data = df.copy()
+    data[col_fecha] = pd.to_datetime(data[col_fecha])
+    serie = data.groupby(data[col_fecha].dt.to_period(freq)).size()
     serie.index = serie.index.astype(str)
     if graficar:
         sns.set_style("whitegrid")
         plt.figure(figsize=figsize)
         sns.lineplot(x=serie.index, y=serie.values, marker=marker)
         plt.xticks(rotation=45)
-        plt.title("Traslados por mes")
+        plt.title(f"Cantidad de traslados en el tiempo (freq={freq})")
+        plt.xlabel("Período")
         plt.ylabel("Cantidad de traslados")
-        plt.xlabel("Mes")
         plt.tight_layout()
         plt.show()
     return serie
 
-def traslados_en_el_tiempo(df, col_fecha="Fecha egreso", freq="M", graficar=True, figsize=(12,5)):
-    data = df.copy()
-    data[col_fecha] = pd.to_datetime(data[col_fecha])
-    serie = data.groupby(data[col_fecha].dt.to_period(freq)).size()
-    serie.index = serie.index.astype(str)
-    if graficar:
-        plt.figure(figsize=figsize)
-        plt.plot(serie.index, serie.values, marker="o")
-        plt.xticks(rotation=45)
-        plt.title("Cantidad de traslados en el tiempo")
-        plt.xlabel("Periodo")
-        plt.ylabel("Cantidad de traslados")
-        plt.tight_layout()
-        plt.show()
-    return serie
+# alias para compatibilidad con código anterior
+traslados_por_mes = traslados_en_el_tiempo
 
 def distribucion_traslados_paciente(df, col_id="Id", valores=[1,2,3], graficar=True, figsize=(8,5)):
     traslados_por_paciente = df.groupby(col_id).size()
@@ -569,55 +572,12 @@ def mostrar_recorridos_estado(df, col_id="Id"):
         print(f"Paciente {paciente_id} - {len(grupo)} traslados")
         display(grupo[columnas])
 
-def graficar_estado_paciente(df, col_id="Id"):
-
-    tipo_map = {
-        "criticas": 3,
-        "intermedias": 2,
-        "generales": 1
-    }
-
-    for paciente_id, grupo in df.groupby(col_id):
-
-        grupo = grupo.sort_values("Fecha inicio")
-
-        niveles = grupo["Tipo al ingreso"].map(tipo_map)
-
-        if niveles.isna().all():
-            continue
-
-        hospitales = grupo["Nombre Hospital"]
-
-        plt.figure(figsize=(8,3))
-
-        plt.plot(
-            range(1, len(niveles)+1),
-            niveles,
-            marker="o"
-        )
-
-        plt.xticks(
-            range(1, len(niveles)+1),
-            hospitales,
-            rotation=45,
-            ha="right"
-        )
-
-        plt.yticks(
-            [1,2,3],
-            ["Generales","Intermedias","Críticas"]
-        )
-
-        plt.title(f"Paciente {paciente_id}")
-        plt.xlabel("Traslado")
-        plt.ylabel("Nivel de cama")
-
-        plt.tight_layout()
-        plt.show()
+# alias para compatibilidad: graficar_estado_paciente_debug ahora es la versión oficial
+graficar_estado_paciente_debug = graficar_estado_paciente
 
 from IPython.display import display
 
-def graficar_estado_paciente_debug(df, col_id="Id"):
+def graficar_estado_paciente(df, col_id="Id"):
 
     tipo_map = {
         "criticas": 3,
@@ -656,8 +616,6 @@ def graficar_estado_paciente_debug(df, col_id="Id"):
 
         display(fig)
 
-import plotly.graph_objects as go
-from IPython.display import display
 
 def sankey_pacientes(df):
     df_pairs = df[df["Hospital siguiente"].notna()][["Nombre Hospital", "Hospital siguiente"]]
@@ -1021,93 +979,4 @@ def gdf_red_hospitalaria_curva(G, hosp_coords, curva_base=0.3):
 
     return gdf_edges, gdf_nodes
 
-
-import matplotlib.pyplot as plt
-import geopandas as gpd
-import numpy as np
-from shapely.geometry import LineString
-import contextily as ctx
-from matplotlib import cm, colors
-
-# -------------------------------------------------------
-# generar curva uniforme
-# -------------------------------------------------------
-def curved_line(p1, p2, curva_factor=0.2, n=40):
-    x1, y1 = p1
-    x2, y2 = p2
-    dx = x2 - x1
-    dy = y2 - y1
-    length = np.sqrt(dx**2 + dy**2)
-    if length == 0:
-        return LineString([p1, p2])
-
-    mx, my = (x1 + x2)/2, (y1 + y2)/2
-    nx, ny = -dy/length, dx/length
-    displacement = max(curva_factor*length, 0.0001)
-    cx, cy = mx + displacement*nx, my + displacement*ny
-
-    t = np.linspace(0, 1, n)
-    xs = (1 - t)**2 * x1 + 2*(1 - t)*t*cx + t**2*x2
-    ys = (1 - t)**2 * y1 + 2*(1 - t)*t*cy + t**2*y2
-    return LineString(list(zip(xs, ys)))
-
-# -------------------------------------------------------
-# construir gdf de aristas
-# -------------------------------------------------------
-def construir_gdf_edges(G, geom_dict, curva_base=0.2):
-    edges = []
-    missing_nodes = set()
-    for u, v, d in G.edges(data=True):
-        if u not in geom_dict or v not in geom_dict:
-            missing_nodes.add(u if u not in geom_dict else v)
-            continue
-        p1, p2 = (geom_dict[u].x, geom_dict[u].y), (geom_dict[v].x, geom_dict[v].y)
-        line = curved_line(p1, p2, curva_base)
-        edges.append({
-            "geometry": line,
-            "weight": d["weight"],
-            "u": u,
-            "v": v
-        })
-    return edges, missing_nodes
-
-# -------------------------------------------------------
-# plot sobre AMBA con color por peso
-# -------------------------------------------------------
-def plot_red_sobre_amba_colores(gdf_edges, gdf_nodes, municipios_amba, mostrar_nombres=True, mostrar_peso=True):
-    municipios = municipios_amba.to_crs(epsg=3857)
-    hospitales = gdf_nodes.to_crs(epsg=3857)
-    edges = gdf_edges.to_crs(epsg=3857)
-
-    fig, ax = plt.subplots(figsize=(12,12))
-    municipios.plot(ax=ax, alpha=0.3, edgecolor="black", color="lightgrey")
-
-    if not edges.empty:
-        # normalizar pesos a colormap
-        norm = colors.Normalize(vmin=edges["weight"].min(), vmax=edges["weight"].max())
-        cmap = cm.get_cmap("plasma")
-
-        for _, row in edges.iterrows():
-            line = row.geometry
-            lw = np.log1p(row["weight"]) * 1.5 if mostrar_peso else 1
-            color = cmap(norm(row["weight"]))
-            x, y = line.xy
-            ax.plot(x, y, linewidth=lw, alpha=0.7, color=color)
-
-    hospitales.plot(ax=ax, color="red", markersize=50, zorder=2)
-    if mostrar_nombres:
-        for _, row in hospitales.iterrows():
-            if row.geometry is not None:
-                ax.annotate(
-                    row["Nombre Hospital"],
-                    xy=(row.geometry.x, row.geometry.y),
-                    xytext=(5,5),
-                    textcoords="offset points",
-                    fontsize=8
-                )
-
-    ctx.add_basemap(ax, source=ctx.providers.OpenStreetMap.Mapnik)
-    ax.set_title("Red hospitalaria sobre AMBA (colores por traslados)")
-    ax.axis("off")
-    plt.show()
-# ---------------------------------------------------------
+# ---------------------------------------------------------
