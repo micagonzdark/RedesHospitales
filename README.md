@@ -12,9 +12,10 @@ Proyecto de análisis de redes de traslados de pacientes en la **Red Sudeste** (
 ## Notebooks
 
 *   **`notebooks/00_setup.ipynb`**: Configuración inicial y verificación del entorno.
-*   **`notebooks/01_EDA.ipynb`**: Análisis exploratorio principal: volúmenes, red hospitalaria, métricas, trayectorias y mapas.
-*   **`notebooks/02_analisis_a_detalle.ipynb`**: Análisis en profundidad de trayectorias de pacientes y roles source/sink por hospital.
-*   **`notebooks/03_poster_outputs.ipynb`**: Generación de las figuras y tablas del poster académico.
+*   **`notebooks/01_red_hospitalaria.ipynb`**: Análisis de la red de traslados: mapa, métricas de grafo (betweenness, SSR), flujos frecuentes y evolución temporal.
+*   **`notebooks/02_analisis_por_hospital.ipynb`**: Análisis descriptivo por hospital: traslados, tiempo de internación, fallecidos, riesgo social y análisis combinado.
+*   **`notebooks/03_trayectorias_pacientes.ipynb`**: Análisis en profundidad de trayectorias de pacientes y limpieza detallada del dataset.
+*   **`notebooks/04_poster_outputs.ipynb`**: Generación de las figuras y tablas del poster académico.
 
 ## Datos necesarios (no incluidos en el repo)
 

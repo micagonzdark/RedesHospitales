@@ -14,6 +14,7 @@ import unicodedata
 import re
 import seaborn as sns
 from matplotlib.patches import Patch
+from matplotlib import cm, colors
 # ---------------------------------------------------------
 
 # ---------------------------------------------------------
@@ -103,21 +104,117 @@ def revisar_dias_negativos(df, max_pacientes=5):
 # funciones de limpieza y carga de datos
 # ---------------------------------------------------------
 def limpiar_pacientes(df):
+    """
+    Pipeline completo de limpieza sobre el dataset de pacientes.
+    Mantiene los nombres de columnas originales.
+    """
     df_clean = df[df["Id"].astype(str).str.match(r"[A-Za-z0-9]+")].copy()
+
+    # normalizar nombre de hospital
     if "Nombre Hospital" in df_clean.columns:
         df_clean["Nombre Hospital"] = df_clean["Nombre Hospital"].apply(limpiar_nombre)
+
+    # convertir fechas
     date_cols = ["Fecha inicio", "Fecha egreso", "Última actualización"]
     for c in date_cols:
         if c in df_clean.columns:
             df_clean[c] = pd.to_datetime(df_clean[c], errors="coerce")
+
+    # duración de internación
     if "Fecha inicio" in df_clean.columns and "Fecha egreso" in df_clean.columns:
         df_clean["Duracion días"] = (df_clean["Fecha egreso"] - df_clean["Fecha inicio"]).dt.days
+
+    # normalizar columnas categóricas (minúsculas, sin espacios extras, nan → NA)
+    cols_cat = ["Estado al ingreso", "Último estado", "Tipo al ingreso", "Último tipo", "Sexo", "Motivo"]
+    for col in cols_cat:
+        if col in df_clean.columns:
+            df_clean[col] = (
+                df_clean[col]
+                .astype(str)
+                .str.lower()
+                .str.strip()
+                .replace("nan", pd.NA)
+            )
+
+    # estandarizar tipo de cama: uti-pediatrica → criticas
+    for col in ["Tipo al ingreso", "Último tipo"]:
+        if col in df_clean.columns:
+            df_clean[col] = df_clean[col].replace({"uti-pediatrica": "criticas"})
+
+    # clasificar tipo de egreso
     if "Motivo" in df_clean.columns:
-        df_clean["murio"] = df_clean["Motivo"].astype(str).str.contains("fallec|muert", case=False, na=False)
+        df_clean["tipo_egreso"] = df_clean["Motivo"].apply(clasificar_egreso)
+        df_clean["murio"] = df_clean["tipo_egreso"] == "muerte"
+
+    # evolución de complejidad dentro de la internación
+    if "Tipo al ingreso" in df_clean.columns and "Último tipo" in df_clean.columns:
+        df_clean = clasificar_evolucion(df_clean,
+                                        col_ingreso="Tipo al ingreso",
+                                        col_final="Último tipo")
+
+    # edad numérica
+    if "Edad" in df_clean.columns:
+        df_clean["Edad"] = pd.to_numeric(df_clean["Edad"], errors="coerce")
+
     return df_clean
 
 def cargar_datos_pacientes(path):
     return limpiar_pacientes(pd.read_excel(path))
+
+
+# ---------------------------------------------------------
+# funciones de clasificación y feature engineering
+# (usadas por limpiar_pacientes y disponibles para los notebooks)
+# ---------------------------------------------------------
+def clasificar_egreso(x):
+    """
+    Clasifica el motivo de egreso en categorías simples.
+    Retorna: 'muerte', 'alta', 'traslado', 'otro', 'desconocido'
+    """
+    if pd.isna(x):
+        return "desconocido"
+    x = str(x).lower().strip()
+    if "muert" in x or "fallec" in x:
+        return "muerte"
+    if "alta" in x:
+        return "alta"
+    if "traslad" in x:
+        return "traslado"
+    if x in ["otro", "anulado"]:
+        return "otro"
+    return "otro"
+
+
+def clasificar_evolucion(df, col_ingreso="Tipo al ingreso", col_final="Último tipo"):
+    """
+    Agrega columnas de nivel numérico de complejidad y evolución del paciente.
+    evolucion > 0 → empeoró | evolucion < 0 → mejoró | evolucion = 0 → igual
+    """
+    orden = {"generales": 1, "intermedias": 2, "criticas": 3}
+    df["nivel_ingreso"] = df[col_ingreso].map(orden)
+    df["nivel_final"] = df[col_final].map(orden)
+    df["evolucion"] = df["nivel_final"] - df["nivel_ingreso"]
+    return df
+
+
+def check_post_limpieza(df):
+    """
+    Imprime un resumen rápido del dataset después de limpiar.
+    Útil para correr al final de la celda de carga en los notebooks.
+    """
+    print("--- CHEQUEO POST-LIMPIEZA ---")
+    print(f"Filas:              {len(df)}")
+    print(f"Pacientes únicos:   {df['Id'].nunique()}")
+    print(f"Hospitales únicos:  {df['Nombre Hospital'].nunique()}")
+    print(f"Valores nulos (Fecha inicio): {df['Fecha inicio'].isna().sum()}")
+    print(f"Valores nulos (Fecha egreso): {df['Fecha egreso'].isna().sum()}")
+    if "tipo_egreso" in df.columns:
+        print("\nDistribución tipo_egreso:")
+        print(df["tipo_egreso"].value_counts())
+    if "evolucion" in df.columns:
+        print("\nDistribución evolución:")
+        print(df["evolucion"].value_counts())
+# ---------------------------------------------------------
 
 def limpiar_coordenadas(hosp_coords):
     df_clean = hosp_coords.copy()
@@ -155,52 +252,73 @@ def ajustar_coordenadas_upa(coords_df):
 # ---------------------------------------------------------
 # funciones de reconstrucción de traslados
 # ---------------------------------------------------------
-def reconstruir_traslados(df, max_horas_interno=24):
+def reconstruir_traslados(df, max_horas_interno=24, filtrar_errores=True):
     """
-    Reconstruye traslados y marca errores con un indicador de gravedad.
-    - max_horas_interno: diferencia máxima (en horas) que puede considerarse como traslado interno casi simultáneo
-    Gravedad:
+    Reconstruye traslados entre hospitales a partir del dataset de pacientes.
+
+    Parámetros
+    ----------
+    max_horas_interno : int
+        Diferencia máxima en horas para considerar un traslado casi simultáneo
+        (posible traslado interno). Default: 24.
+    filtrar_errores : bool
+        Si True (default), descarta traslados con errores graves de fechas
+        (gravedad_error == 2). Los posibles internos (gravedad 1) se mantienen.
+
+    Gravedad del error:
         0 → todo ok
-        1 → posible traslado interno / casi simultáneo
-        2 → error grave de fechas
+        1 → posible traslado interno / casi simultáneo (diferencia < max_horas_interno)
+        2 → error grave de fechas (fechas negativas graves)
     """
     df = df.sort_values(["Id", "Fecha inicio"]).copy()
-    
-    # Hospital y fecha siguiente
+
+    # hospital y fecha del siguiente registro del mismo paciente
     df["Hospital siguiente"] = df.groupby("Id")["Nombre Hospital"].shift(-1)
     df["Fecha ingreso siguiente"] = df.groupby("Id")["Fecha inicio"].shift(-1)
-    
-    # dias entre hospitales
+
+    # días entre egreso del hospital actual e ingreso al siguiente
     df["dias_entre_hospitales"] = (df["Fecha ingreso siguiente"] - df["Fecha egreso"]).dt.days
-    
-    # marcar traslados
-    df["es_traslado"] = df["Motivo"].str.contains("traslad", case=False, na=False)
-    
-    # filtrar traslados válidos
+
+    # usar tipo_egreso si está disponible, sino buscar en Motivo directamente
+    if "tipo_egreso" in df.columns:
+        df["es_traslado"] = df["tipo_egreso"] == "traslado"
+    else:
+        df["es_traslado"] = df["Motivo"].str.contains("traslad", case=False, na=False)
+
+    # filtrar traslados válidos: marcados como traslado, con destino distinto al origen
     traslados = df[
         (df["es_traslado"]) &
         (df["Hospital siguiente"].notna()) &
         (df["Hospital siguiente"] != df["Nombre Hospital"])
     ].copy()
-    
-    # error de fechas negativas
+
+    # detectar errores de fechas
     traslados["error_fecha"] = traslados["dias_entre_hospitales"] < 0
-    
-    # posible interno / traslados casi simultáneos
-    delta_horas = (traslados["Fecha ingreso siguiente"] - traslados["Fecha egreso"]).dt.total_seconds() / 3600
-    traslados["posible_interno"] = (traslados["error_fecha"]) & (delta_horas.abs() <= max_horas_interno)
-    
-    # gravedad: 0 = ok, 1 = posible interno, 2 = error grave
+
+    delta_horas = (
+        traslados["Fecha ingreso siguiente"] - traslados["Fecha egreso"]
+    ).dt.total_seconds() / 3600
+    traslados["posible_interno"] = (
+        traslados["error_fecha"]
+    ) & (
+        delta_horas.abs() <= max_horas_interno
+    )
+
     def calcular_gravedad(row):
         if row["error_fecha"]:
-            if row["posible_interno"]:
-                return 1
-            else:
-                return 2
+            return 1 if row["posible_interno"] else 2
         return 0
-    
+
     traslados["gravedad_error"] = traslados.apply(calcular_gravedad, axis=1)
-    
+
+    # descartar errores graves por defecto
+    if filtrar_errores:
+        n_antes = len(traslados)
+        traslados = traslados[traslados["gravedad_error"] < 2].copy()
+        n_descartados = n_antes - len(traslados)
+        if n_descartados > 0:
+            print(f"[reconstruir_traslados] Se descartaron {n_descartados} traslados con error grave de fechas.")
+
     return traslados
 # ---------------------------------------------------------
 
