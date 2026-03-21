@@ -21,9 +21,13 @@ from matplotlib import cm, colors
 import seaborn as sns
 import contextily as ctx
 import folium
+import branca.colormap as bcm
+
 
 import plotly.graph_objects as go
 from IPython.display import display
+
+from matplotlib.collections import LineCollection
 
 # ---------------------------------------------------------
 # funciones utilitarias
@@ -328,6 +332,42 @@ def reconstruir_traslados(df, max_horas_interno=24, filtrar_errores=True):
             print(f"[reconstruir_traslados] Se descartaron {n_descartados} traslados con error grave de fechas.")
 
     return traslados
+
+
+def identificar_episodios(df, col_id="Id", col_fecha="Fecha inicio", col_motivo="Motivo", umbral_alerta_dias=2):
+    """
+    Identifica episodios de internación basados en el motivo de egreso.
+    Un nuevo episodio comienza si el registro previo terminó en alta domiciliaria o muerte.
+    
+    Agrega:
+        - episodio_id: ID incremental por paciente
+        - alerta_gap: True si pasaron más de `umbral_alerta_dias` desde el egreso previo
+    """
+    df = df.sort_values([col_id, col_fecha]).copy()
+    
+    # 1. Delta de tiempo con el registro anterior
+    df["_delta"] = df.groupby(col_id)[col_fecha].diff()
+    
+    # 2. Motivo del egreso anterior
+    df["_motivo_previo"] = df.groupby(col_id)[col_motivo].shift(1)
+    
+    # 3. Identificar fin de episodio (Alta o Muerte)
+    # Valores típicos configurados en limpiar_pacientes: 'alta-domiciliaria', 'muerte'
+    fin_episodio = df["_motivo_previo"].isin(["alta-domiciliaria", "muerte", "alta", "muerte"])
+    
+    # 4. Iniciar nuevo episodio si el anterior finalizó o si es el primer registro (delta NaT)
+    df["nuevo_episodio"] = fin_episodio | df["_delta"].isna()
+    
+    # 5. Numerar episodios
+    df["episodio_id"] = df.groupby(col_id)["nuevo_episodio"].cumsum()
+    
+    # 6. Alerta de gap temporal (sin romper el episodio)
+    df["alerta_gap"] = df["_delta"].dt.days > umbral_alerta_dias
+    
+    # Limpiar columnas auxiliares
+    df = df.drop(columns=["_delta", "_motivo_previo"])
+    
+    return df
 # ---------------------------------------------------------
 
 # ---------------------------------------------------------
@@ -573,7 +613,7 @@ def mostrar_recorridos_estado(df, col_id="Id"):
         display(grupo[columnas])
 
 # alias para compatibilidad: graficar_estado_paciente_debug ahora es la versión oficial
-graficar_estado_paciente_debug = graficar_estado_paciente
+
 
 from IPython.display import display
 
@@ -615,6 +655,7 @@ def graficar_estado_paciente(df, col_id="Id"):
         plt.tight_layout()
 
         display(fig)
+
 
 
 def sankey_pacientes(df):
@@ -730,12 +771,12 @@ def analizar_red_hospitalaria(traslados, hosp_coords, fecha_inicio=None, fecha_f
 # ---------------------------------------------------------
 
 # ---------------------------------------------------------
-# funciones de visualización
+# Funciones de visualización
 # ---------------------------------------------------------
-
-# -------------------------------------------------------
-# construir gdf de aristas (reutilizable)
-# -------------------------------------------------------
+def get_curvature(G, u, v, base_curva=0.2):
+    if G.has_edge(v, u):
+        return base_curva if str(u) < str(v) else -base_curva
+    return base_curva
 
 def curved_line(p1, p2, curva_factor=0.2, n=40):
     """
@@ -773,15 +814,35 @@ def curved_line(p1, p2, curva_factor=0.2, n=40):
 
     return LineString(list(zip(xs, ys)))
 
-def get_curvature(G, u, v, base_curva=0.8):
-    """
-    Determina la curvatura de la arista.
-    - base_curva >0
-    - alterna sentido si existe ida y vuelta
-    """
-    if G.has_edge(v, u):
-        return base_curva if hash(u) < hash(v) else -base_curva
-    return base_curva
+
+def colapsar_grafo(G):
+    import networkx as nx
+
+    if isinstance(G, nx.MultiDiGraph) or isinstance(G, nx.MultiGraph):
+        H = nx.DiGraph()
+        for u, v, data in G.edges(data=True):
+            w = data.get("weight", 1)
+            if H.has_edge(u, v):
+                H[u][v]["weight"] += w
+            else:
+                H.add_edge(u, v, weight=w)
+        return H
+    return G
+
+
+def get_edge_style(weights):
+    weights = [max(w, 1) for w in weights]
+
+    norm = colors.LogNorm(vmin=min(weights), vmax=max(weights))
+    cmap = cm.get_cmap("plasma")
+
+    def get_color(w):
+        return cmap(norm(max(w, 1)))
+
+    def get_width(w):
+        return 1 + np.log1p(max(w, 1))
+
+    return get_color, get_width, norm, cmap
 
 def construir_gdf_edges(G, geom_dict, curva_base):
     edges = []
@@ -801,12 +862,14 @@ def construir_gdf_edges(G, geom_dict, curva_base):
             "v": v
         })
     return edges, missing_nodes
+#-----------------------------------------------------------
+# Plots
+#-----------------------------------------------------------
 
-# -------------------------------------------------------
-# plot simple (sin mapa)
-# -------------------------------------------------------
-
+# plot geo
 def plot_edges_geo(G, hosp_coords, mostrar_nombres=True, mostrar_peso=True):
+    G = colapsar_grafo(G)
+
     fig, ax = plt.subplots(figsize=(12,12))
 
     gdf_nodes = gpd.GeoDataFrame(
@@ -814,39 +877,44 @@ def plot_edges_geo(G, hosp_coords, mostrar_nombres=True, mostrar_peso=True):
         geometry=gpd.points_from_xy(hosp_coords["Longitud"], hosp_coords["Latitud"])
     )
 
-    gdf_nodes.plot(ax=ax, marker="o", color="red", markersize=50, zorder=2)
+    gdf_nodes.plot(ax=ax, color="red", markersize=50, zorder=2)
 
     geom_dict = {row["Nombre Hospital"]: row.geometry for _, row in gdf_nodes.iterrows()}
-
     edges, _ = construir_gdf_edges(G, geom_dict, 0.15)
+
+    weights = [e["weight"] for e in edges]
+    get_color, get_width, norm, cmap = get_edge_style(weights)
 
     for e in edges:
         line = e["geometry"]
-        lw = get_linewidth(e["weight"]) if mostrar_peso else 1
+        w = e["weight"]
+
         x, y = line.xy
-        ax.plot(x, y, linewidth=lw, alpha=0.6, color="blue")
-        draw_arrow(ax, line, lw)
+        ax.plot(x, y,
+                linewidth=get_width(w),
+                color=get_color(w),
+                alpha=0.7)
+
+        draw_arrow(ax, line, get_width(w))
+
         if mostrar_peso:
             xm, ym = line.interpolate(0.5, normalized=True).coords[0]
-            ax.text(xm, ym, str(e["weight"]), fontsize=8, color="blue")
+            ax.text(xm, ym, str(w), fontsize=8, color=get_color(w))
 
     if mostrar_nombres:
         for _, row in gdf_nodes.iterrows():
-            ax.text(row.geometry.x, row.geometry.y, row["Nombre Hospital"], fontsize=8, ha="right")
+            ax.text(row.geometry.x, row.geometry.y, row["Nombre Hospital"], fontsize=8)
 
-    ax.set_title("Red hospitalaria")
-    ax.set_xlabel("Longitud")
-    ax.set_ylabel("Latitud")
+    sm = cm.ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array([])
+    plt.colorbar(sm, ax=ax)
 
     return fig, ax
 
-# -------------------------------------------------------
-# plot con mapa base
-# -------------------------------------------------------
+# plot con mapa
 
 def plot_red_con_mapa(G, hosp_coords, mostrar_nombres=True, mostrar_peso=True):
-    hosp_coords = hosp_coords.copy()
-    hosp_coords["Nombre Hospital"] = hosp_coords["Nombre Hospital"].str.strip()
+    G = colapsar_grafo(G)
 
     gdf_nodes = gpd.GeoDataFrame(
         hosp_coords,
@@ -855,36 +923,75 @@ def plot_red_con_mapa(G, hosp_coords, mostrar_nombres=True, mostrar_peso=True):
     ).to_crs(epsg=3857)
 
     geom_dict = dict(zip(gdf_nodes["Nombre Hospital"], gdf_nodes.geometry))
+    edges, _ = construir_gdf_edges(G, geom_dict, 100)  # 👈 más chico
 
-    edges_list, missing_nodes = construir_gdf_edges(G, geom_dict, 2000)
-    if missing_nodes:
-        print("Hospitales ignorados:", missing_nodes)
+    weights = [e["weight"] for e in edges]
+    get_color, get_width, norm, cmap = get_edge_style(weights)
 
     fig, ax = plt.subplots(figsize=(10,10))
-    for e in edges_list:
+
+    # -----------------------
+    # dibujar aristas
+    # -----------------------
+    for e in edges:
         line = e["geometry"]
-        lw = get_linewidth(e["weight"]) if mostrar_peso else 1
+        w = e["weight"]
+
         x, y = line.xy
-        ax.plot(x, y, linewidth=lw, alpha=0.6, color="blue")
-        draw_arrow(ax, line, lw)
+        ax.plot(x, y,
+                linewidth=get_width(w),
+                color=get_color(w),
+                alpha=0.7)
+
+        draw_arrow(ax, line, get_width(w))
+
         if mostrar_peso:
             xm, ym = line.interpolate(0.5, normalized=True).coords[0]
-            ax.text(xm, ym, str(e["weight"]), fontsize=8, color="blue")
+            ax.text(xm, ym, str(w), fontsize=8, color=get_color(w))
 
+    # -----------------------
+    # nodos
+    # -----------------------
     gdf_nodes.plot(ax=ax, color="red", markersize=40, zorder=2)
 
     if mostrar_nombres:
         for _, row in gdf_nodes.iterrows():
-            ax.text(row.geometry.x, row.geometry.y, row["Nombre Hospital"], fontsize=8, ha="right")
+            ax.text(row.geometry.x, row.geometry.y, row["Nombre Hospital"], fontsize=8)
 
-    ctx.add_basemap(ax, source=ctx.providers.OpenStreetMap.Mapnik)
+    # -----------------------
+    # 🔥 LIMITES BIEN HECHOS
+    # -----------------------
+    xs = gdf_nodes.geometry.x
+    ys = gdf_nodes.geometry.y
+
+    xmin, xmax = np.percentile(xs, [1, 99])
+    ymin, ymax = np.percentile(ys, [1, 99])
+
+    # padding (clave para que no quede apretado)
+    pad_x = (xmax - xmin) * 0.05
+    pad_y = (ymax - ymin) * 0.05
+
+    ax.set_xlim(xmin - pad_x, xmax + pad_x)
+    ax.set_ylim(ymin - pad_y, ymax + pad_y)
+
+    # -----------------------
+    # basemap
+    # -----------------------
+    ctx.add_basemap(ax, source=ctx.providers.CartoDB.Positron)
+
     ax.axis("off")
+
+    # -----------------------
+    # colorbar
+    # -----------------------
+    sm = cm.ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array([])
+    plt.colorbar(sm, ax=ax)
 
     return fig, ax
 
-# -------------------------------------------------------
-# plot sobre AMBA
-# -------------------------------------------------------
+# plot amba
+
 def plot_red_sobre_amba(gdf_edges, gdf_nodes, municipios_amba, mostrar_nombres=True, mostrar_peso=True):
     municipios = municipios_amba.to_crs(epsg=3857)
     hospitales = gdf_nodes.to_crs(epsg=3857)
@@ -894,50 +1001,31 @@ def plot_red_sobre_amba(gdf_edges, gdf_nodes, municipios_amba, mostrar_nombres=T
     municipios.plot(ax=ax, alpha=0.3, edgecolor="black", color="lightgrey")
 
     if not edges.empty:
-        # normalizar pesos en escala logarítmica
         norm = colors.LogNorm(vmin=max(edges["weight"].min(), 1), vmax=edges["weight"].max())
         cmap = cm.get_cmap("plasma")
-        
-        sm = cm.ScalarMappable(cmap=cmap, norm=norm)
-        sm.set_array([])  # necesario para colorbar
 
+        sm = cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
 
         for _, row in edges.iterrows():
             line = row.geometry
-            lw = np.log1p(row["weight"]) * 1.5 if mostrar_peso else 1
-            color = cmap(norm(max(row["weight"], 1)))  # color según peso log
+            w = max(row["weight"], 1)
+
+            lw = np.log1p(w) * 1.5 if mostrar_peso else 1
+            color = cmap(norm(w))
+
             x, y = line.xy
             ax.plot(x, y, linewidth=lw, alpha=0.7, color=color)
             draw_arrow(ax, line, lw)
+
             if mostrar_peso:
                 xm, ym = line.interpolate(0.5, normalized=True).coords[0]
                 ax.text(xm, ym, str(row["weight"]), fontsize=8, color=color)
+
         cbar = plt.colorbar(sm, ax=ax, fraction=0.03, pad=0.04)
         cbar.set_label("Cantidad de traslados (log scale)")
 
-    # -------------------------
-    # Plot nodos por tipo
-    # -------------------------
-    def get_node_color(name):
-        if "UPA" in name.upper():
-            return "green"
-        elif "MODULO HOSPITALARIO" in name.upper():
-            return "orange"
-        else:
-            return "blue"
-
-    node_colors = [get_node_color(n) for n in hospitales["Nombre Hospital"]]
-    hospitales.plot(ax=ax, color=node_colors, markersize=50, zorder=2)
-
-    # -------------------------
-    # Leyenda de nodos
-    # -------------------------
-    legend_elements = [
-        Patch(facecolor="green", edgecolor="black", label="UPA"),
-        Patch(facecolor="orange", edgecolor="black", label="Módulo Hospitalario"),
-        Patch(facecolor="blue", edgecolor="black", label="Otros")
-    ]
-    ax.legend(handles=legend_elements, loc="upper right")
+    hospitales.plot(ax=ax, color="red", markersize=50, zorder=2)
 
     if mostrar_nombres:
         for _, row in hospitales.iterrows():
@@ -949,34 +1037,66 @@ def plot_red_sobre_amba(gdf_edges, gdf_nodes, municipios_amba, mostrar_nombres=T
                     textcoords="offset points",
                     fontsize=8
                 )
-    ax.set_title("Red hospitalaria sobre AMBA (colores por traslados y tipo de hospital)")
-    ax.axis("off")
-    plt.show()
 
-def gdf_red_hospitalaria_curva(G, hosp_coords, curva_base=0.3):
-    """
-    Genera GeoDataFrames de nodos y aristas con curvas visibles
-    """
-    geom_dict = {
-        row["Nombre Hospital"]: row.geometry
-        for _, row in gpd.GeoDataFrame(
-            hosp_coords,
-            geometry=gpd.points_from_xy(hosp_coords["Longitud"], hosp_coords["Latitud"])
-        ).iterrows()
+    ax.set_title("Red hospitalaria sobre AMBA")
+    ax.axis("off")
+
+    return fig, ax
+
+
+# plot interactivo
+def plot_red_interactiva(G, hosp_coords):
+    import folium
+    import branca.colormap as bcm
+
+    G = colapsar_grafo(G)
+
+    coord_dict = {
+        row["Nombre Hospital"]: (row["Latitud"], row["Longitud"])
+        for _, row in hosp_coords.iterrows()
     }
 
-    edges_list, missing_nodes = construir_gdf_edges(G, geom_dict, curva_base)
+    weights = [d["weight"] for _,_,d in G.edges(data=True)]
+    weights = [max(w,1) for w in weights]
 
-    gdf_edges = gpd.GeoDataFrame(edges_list, geometry="geometry", crs="EPSG:4326").to_crs(3857)
-    gdf_nodes = gpd.GeoDataFrame(
-        hosp_coords,
-        geometry=gpd.points_from_xy(hosp_coords["Longitud"], hosp_coords["Latitud"]),
-        crs="EPSG:4326"
-    ).to_crs(3857)
+    colormap = bcm.linear.plasma.scale(min(weights), max(weights))
 
-    if missing_nodes:
-        print("Ignorados (no encontrados en hosp_coords):", missing_nodes)
+    m = folium.Map(tiles="cartodbpositron")
 
-    return gdf_edges, gdf_nodes
+    # nodos
+    for name, (lat, lon) in coord_dict.items():
+        folium.CircleMarker(
+            location=[lat, lon],
+            radius=4,
+            color="black",
+            fill=True,
+            popup=name
+        ).add_to(m)
 
-# ---------------------------------------------------------
+    # edges con curva
+    for u, v, d in G.edges(data=True):
+        if u not in coord_dict or v not in coord_dict:
+            continue
+
+        p1 = coord_dict[u][::-1]  # lon, lat
+        p2 = coord_dict[v][::-1]
+
+        curva = get_curvature(G, u, v, 0.2)
+        line = curved_line(p1, p2, curva, n=20)
+
+        coords = [(y, x) for x, y in line.coords]  # volver a lat,lon
+
+        w = max(d["weight"], 1)
+
+        folium.PolyLine(
+            coords,
+            weight=1 + np.log1p(w),
+            color=colormap(w),
+            opacity=0.8,
+            tooltip=f"{u} → {v}: {w}"
+        ).add_to(m)
+
+    colormap.caption = "Cantidad de traslados"
+    colormap.add_to(m)
+
+    return m
