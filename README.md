@@ -23,7 +23,3 @@ Colocar en `data/`:
 - `pacientes.xlsx`
 - `hospitales_coordenadas.csv`
 - `shapefiles/departamento/departamentoPolygon.shp`
-
-## A futuro
-
-Construir una pantalla de decisión operativa para recomendación de derivaciones en tiempo real. Ver `docs/` para más detalles e ideas.
