@@ -6,6 +6,7 @@ data/
 # archivos temporales de python
 __pycache__/
 *.pyc
+/tmp
 
 # jupyter
 .ipynb_checkpoints/
