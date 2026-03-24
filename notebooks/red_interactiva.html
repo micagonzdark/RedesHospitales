@@ -1,0 +1,229 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        
+            <script src="lib/bindings/utils.js"></script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+        
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+        <link
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6"
+          crossorigin="anonymous"
+        />
+        <script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+          crossorigin="anonymous"
+        ></script>
+
+
+        <center>
+          <h1></h1>
+        </center>
+        <style type="text/css">
+
+             #mynetwork {
+                 width: 100%;
+                 height: 800px;
+                 background-color: #ffffff;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+
+             
+
+             
+        </style>
+    </head>
+
+
+    <body>
+        <div class="card" style="width: 100%">
+            
+            
+            <div id="mynetwork" class="card-body"></div>
+        </div>
+
+        
+        
+
+        <script type="text/javascript">
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : '',
+                  property : '',
+                  value : []
+              };
+
+              
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById('mynetwork');
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{"color": "orange", "id": "UPA 17 QU", "label": "UPA 17 QU", "shape": "dot"}, {"color": "orange", "id": "MODULO HOSPITALARIO 11 FV", "label": "MODULO HOSPITALARIO 11 FV", "shape": "dot"}, {"color": "orange", "id": "UPA 5 AB", "label": "UPA 5 AB", "shape": "dot"}, {"color": "orange", "id": "EVITA PUEBLO", "label": "EVITA PUEBLO", "shape": "dot"}, {"color": "red", "id": "MUERTE", "label": "MUERTE", "shape": "dot"}, {"color": "orange", "id": "MODULO HOSPITALARIO 10 QU", "label": "MODULO HOSPITALARIO 10 QU", "shape": "dot"}, {"color": "orange", "id": "OLLER", "label": "OLLER", "shape": "dot"}, {"color": "blue", "id": "ALTA", "label": "ALTA", "shape": "dot"}, {"color": "orange", "id": "UPA 10 BE", "label": "UPA 10 BE", "shape": "dot"}, {"color": "orange", "id": "MI PUEBLO", "label": "MI PUEBLO", "shape": "dot"}, {"color": "orange", "id": "ONATIVIA", "label": "ONATIVIA", "shape": "dot"}, {"color": "orange", "id": "EL CRUCE", "label": "EL CRUCE", "shape": "dot"}, {"color": "green", "id": "POBLACI\u00d3N", "label": "POBLACI\u00d3N", "shape": "dot"}, {"color": "orange", "id": "MODULO HOSPITALARIO 9 AB", "label": "MODULO HOSPITALARIO 9 AB", "shape": "dot"}, {"color": "orange", "id": "UPA 11 FV", "label": "UPA 11 FV", "shape": "dot"}, {"color": "orange", "id": "IRIARTE", "label": "IRIARTE", "shape": "dot"}, {"color": "orange", "id": "LUCIO MELENDEZ", "label": "LUCIO MELENDEZ", "shape": "dot"}, {"color": "orange", "id": "MODULO HOSPITALARIO 8 LZ", "label": "MODULO HOSPITALARIO 8 LZ", "shape": "dot"}]);
+                  edges = new vis.DataSet([{"arrows": "to", "from": "EL CRUCE", "to": "ALTA", "value": 0.8205741626794258}, {"arrows": "to", "from": "EL CRUCE", "to": "MI PUEBLO", "value": 0.0023923444976076554}, {"arrows": "to", "from": "EL CRUCE", "to": "MODULO HOSPITALARIO 11 FV", "value": 0.007177033492822967}, {"arrows": "to", "from": "EL CRUCE", "to": "MODULO HOSPITALARIO 9 AB", "value": 0.0011961722488038277}, {"arrows": "to", "from": "EL CRUCE", "to": "MUERTE", "value": 0.1674641148325359}, {"arrows": "to", "from": "EL CRUCE", "to": "UPA 11 FV", "value": 0.0011961722488038277}, {"arrows": "to", "from": "EVITA PUEBLO", "to": "ALTA", "value": 0.7374045801526717}, {"arrows": "to", "from": "EVITA PUEBLO", "to": "EL CRUCE", "value": 0.0015267175572519084}, {"arrows": "to", "from": "EVITA PUEBLO", "to": "MODULO HOSPITALARIO 10 QU", "value": 0.0007633587786259542}, {"arrows": "to", "from": "EVITA PUEBLO", "to": "MUERTE", "value": 0.2603053435114504}, {"arrows": "to", "from": "IRIARTE", "to": "ALTA", "value": 0.5286532951289399}, {"arrows": "to", "from": "IRIARTE", "to": "EL CRUCE", "value": 0.0028653295128939827}, {"arrows": "to", "from": "IRIARTE", "to": "MODULO HOSPITALARIO 10 QU", "value": 0.004297994269340974}, {"arrows": "to", "from": "IRIARTE", "to": "MUERTE", "value": 0.46275071633237824}, {"arrows": "to", "from": "IRIARTE", "to": "UPA 17 QU", "value": 0.0014326647564469914}, {"arrows": "to", "from": "LUCIO MELENDEZ", "to": "ALTA", "value": 0.823346648912561}, {"arrows": "to", "from": "LUCIO MELENDEZ", "to": "EL CRUCE", "value": 0.000887705281846427}, {"arrows": "to", "from": "LUCIO MELENDEZ", "to": "MODULO HOSPITALARIO 9 AB", "value": 0.032401242787394584}, {"arrows": "to", "from": "LUCIO MELENDEZ", "to": "MUERTE", "value": 0.13670661340434975}, {"arrows": "to", "from": "LUCIO MELENDEZ", "to": "UPA 5 AB", "value": 0.006657789613848202}, {"arrows": "to", "from": "MI PUEBLO", "to": "ALTA", "value": 0.8331350386674599}, {"arrows": "to", "from": "MI PUEBLO", "to": "EL CRUCE", "value": 0.003866745984533016}, {"arrows": "to", "from": "MI PUEBLO", "to": "MODULO HOSPITALARIO 11 FV", "value": 0.06870910172516359}, {"arrows": "to", "from": "MI PUEBLO", "to": "MUERTE", "value": 0.09250446162998216}, {"arrows": "to", "from": "MI PUEBLO", "to": "UPA 11 FV", "value": 0.001784651992861392}, {"arrows": "to", "from": "MODULO HOSPITALARIO 10 QU", "to": "ALTA", "value": 0.8077285579641847}, {"arrows": "to", "from": "MODULO HOSPITALARIO 10 QU", "to": "EL CRUCE", "value": 0.007540056550424128}, {"arrows": "to", "from": "MODULO HOSPITALARIO 10 QU", "to": "IRIARTE", "value": 0.008482563619227144}, {"arrows": "to", "from": "MODULO HOSPITALARIO 10 QU", "to": "MODULO HOSPITALARIO 9 AB", "value": 0.000942507068803016}, {"arrows": "to", "from": "MODULO HOSPITALARIO 10 QU", "to": "MUERTE", "value": 0.17342130065975495}, {"arrows": "to", "from": "MODULO HOSPITALARIO 10 QU", "to": "UPA 17 QU", "value": 0.001885014137606032}, {"arrows": "to", "from": "MODULO HOSPITALARIO 11 FV", "to": "ALTA", "value": 0.7612380250552689}, {"arrows": "to", "from": "MODULO HOSPITALARIO 11 FV", "to": "EL CRUCE", "value": 0.008843036109064112}, {"arrows": "to", "from": "MODULO HOSPITALARIO 11 FV", "to": "MI PUEBLO", "value": 0.006632277081798084}, {"arrows": "to", "from": "MODULO HOSPITALARIO 11 FV", "to": "MUERTE", "value": 0.20044215180545322}, {"arrows": "to", "from": "MODULO HOSPITALARIO 11 FV", "to": "UPA 11 FV", "value": 0.022844509948415623}, {"arrows": "to", "from": "MODULO HOSPITALARIO 8 LZ", "to": "ALTA", "value": 0.8823529411764706}, {"arrows": "to", "from": "MODULO HOSPITALARIO 8 LZ", "to": "MUERTE", "value": 0.11764705882352941}, {"arrows": "to", "from": "MODULO HOSPITALARIO 9 AB", "to": "ALTA", "value": 0.7768595041322314}, {"arrows": "to", "from": "MODULO HOSPITALARIO 9 AB", "to": "EL CRUCE", "value": 0.0023612750885478157}, {"arrows": "to", "from": "MODULO HOSPITALARIO 9 AB", "to": "LUCIO MELENDEZ", "value": 0.020070838252656435}, {"arrows": "to", "from": "MODULO HOSPITALARIO 9 AB", "to": "MUERTE", "value": 0.16765053128689492}, {"arrows": "to", "from": "MODULO HOSPITALARIO 9 AB", "to": "UPA 5 AB", "value": 0.03305785123966942}, {"arrows": "to", "from": "OLLER", "to": "ALTA", "value": 0.9650537634408602}, {"arrows": "to", "from": "OLLER", "to": "MUERTE", "value": 0.033602150537634407}, {"arrows": "to", "from": "OLLER", "to": "UPA 10 BE", "value": 0.0013440860215053765}, {"arrows": "to", "from": "ONATIVIA", "to": "ALTA", "value": 0.8270739910313901}, {"arrows": "to", "from": "ONATIVIA", "to": "EL CRUCE", "value": 0.0033632286995515697}, {"arrows": "to", "from": "ONATIVIA", "to": "MI PUEBLO", "value": 0.0002802690582959641}, {"arrows": "to", "from": "ONATIVIA", "to": "MODULO HOSPITALARIO 10 QU", "value": 0.0002802690582959641}, {"arrows": "to", "from": "ONATIVIA", "to": "MODULO HOSPITALARIO 9 AB", "value": 0.001961883408071749}, {"arrows": "to", "from": "ONATIVIA", "to": "MUERTE", "value": 0.1664798206278027}, {"arrows": "to", "from": "ONATIVIA", "to": "UPA 5 AB", "value": 0.0005605381165919282}, {"arrows": "to", "from": "POBLACI\u00d3N", "to": "EL CRUCE", "value": 0.0381517173214727}, {"arrows": "to", "from": "POBLACI\u00d3N", "to": "EVITA PUEBLO", "value": 0.06473931307141093}, {"arrows": "to", "from": "POBLACI\u00d3N", "to": "IRIARTE", "value": 0.034049913516184825}, {"arrows": "to", "from": "POBLACI\u00d3N", "to": "LUCIO MELENDEZ", "value": 0.10872251050160613}, {"arrows": "to", "from": "POBLACI\u00d3N", "to": "MI PUEBLO", "value": 0.1647146034099333}, {"arrows": "to", "from": "POBLACI\u00d3N", "to": "MODULO HOSPITALARIO 10 QU", "value": 0.049617000247096615}, {"arrows": "to", "from": "POBLACI\u00d3N", "to": "MODULO HOSPITALARIO 11 FV", "value": 0.0413639733135656}, {"arrows": "to", "from": "POBLACI\u00d3N", "to": "MODULO HOSPITALARIO 8 LZ", "value": 0.002520385470719051}, {"arrows": "to", "from": "POBLACI\u00d3N", "to": "MODULO HOSPITALARIO 9 AB", "value": 0.018334568816407215}, {"arrows": "to", "from": "POBLACI\u00d3N", "to": "OLLER", "value": 0.03676797627872498}, {"arrows": "to", "from": "POBLACI\u00d3N", "to": "ONATIVIA", "value": 0.1761798863355572}, {"arrows": "to", "from": "POBLACI\u00d3N", "to": "UPA 10 BE", "value": 0.138472942920682}, {"arrows": "to", "from": "POBLACI\u00d3N", "to": "UPA 11 FV", "value": 0.04630590560909315}, {"arrows": "to", "from": "POBLACI\u00d3N", "to": "UPA 17 QU", "value": 0.007462317766246602}, {"arrows": "to", "from": "POBLACI\u00d3N", "to": "UPA 5 AB", "value": 0.07259698542129973}, {"arrows": "to", "from": "UPA 10 BE", "to": "ALTA", "value": 0.9992864787727435}, {"arrows": "to", "from": "UPA 10 BE", "to": "MUERTE", "value": 0.0007135212272565109}, {"arrows": "to", "from": "UPA 11 FV", "to": "ALTA", "value": 0.6451282051282051}, {"arrows": "to", "from": "UPA 11 FV", "to": "EL CRUCE", "value": 0.010256410256410256}, {"arrows": "to", "from": "UPA 11 FV", "to": "MI PUEBLO", "value": 0.017435897435897435}, {"arrows": "to", "from": "UPA 11 FV", "to": "MODULO HOSPITALARIO 11 FV", "value": 0.29025641025641025}, {"arrows": "to", "from": "UPA 11 FV", "to": "MUERTE", "value": 0.036923076923076927}, {"arrows": "to", "from": "UPA 17 QU", "to": "ALTA", "value": 0.6558441558441559}, {"arrows": "to", "from": "UPA 17 QU", "to": "MODULO HOSPITALARIO 10 QU", "value": 0.33766233766233766}, {"arrows": "to", "from": "UPA 17 QU", "to": "MUERTE", "value": 0.006493506493506494}, {"arrows": "to", "from": "UPA 5 AB", "to": "ALTA", "value": 0.654557463672391}, {"arrows": "to", "from": "UPA 5 AB", "to": "EL CRUCE", "value": 0.0006605019815059445}, {"arrows": "to", "from": "UPA 5 AB", "to": "LUCIO MELENDEZ", "value": 0.023778071334214}, {"arrows": "to", "from": "UPA 5 AB", "to": "MODULO HOSPITALARIO 9 AB", "value": 0.26023778071334214}, {"arrows": "to", "from": "UPA 5 AB", "to": "MUERTE", "value": 0.058784676354029064}, {"arrows": "to", "from": "UPA 5 AB", "to": "ONATIVIA", "value": 0.0019815059445178335}]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: "Object" });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: "Object" });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {
+    "configure": {
+        "enabled": false
+    },
+    "edges": {
+        "color": {
+            "inherit": true
+        },
+        "smooth": {
+            "enabled": true,
+            "type": "dynamic"
+        }
+    },
+    "interaction": {
+        "dragNodes": true,
+        "hideEdgesOnDrag": false,
+        "hideNodesOnDrag": false
+    },
+    "physics": {
+        "enabled": true,
+        "stabilization": {
+            "enabled": true,
+            "fit": true,
+            "iterations": 1000,
+            "onlyDynamicEdges": false,
+            "updateInterval": 50
+        }
+    }
+};
+
+                  
+
+
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+
+                  
+
+
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        </script>
+    
+<script>
+const allEdges = [{"from": "EL CRUCE", "to": "ALTA", "value": 0.8205741626794258}, {"from": "EL CRUCE", "to": "MI PUEBLO", "value": 0.0023923444976076554}, {"from": "EL CRUCE", "to": "MODULO HOSPITALARIO 11 FV", "value": 0.007177033492822967}, {"from": "EL CRUCE", "to": "MODULO HOSPITALARIO 9 AB", "value": 0.0011961722488038277}, {"from": "EL CRUCE", "to": "MUERTE", "value": 0.1674641148325359}, {"from": "EL CRUCE", "to": "UPA 11 FV", "value": 0.0011961722488038277}, {"from": "EVITA PUEBLO", "to": "ALTA", "value": 0.7374045801526717}, {"from": "EVITA PUEBLO", "to": "EL CRUCE", "value": 0.0015267175572519084}, {"from": "EVITA PUEBLO", "to": "MODULO HOSPITALARIO 10 QU", "value": 0.0007633587786259542}, {"from": "EVITA PUEBLO", "to": "MUERTE", "value": 0.2603053435114504}, {"from": "IRIARTE", "to": "ALTA", "value": 0.5286532951289399}, {"from": "IRIARTE", "to": "EL CRUCE", "value": 0.0028653295128939827}, {"from": "IRIARTE", "to": "MODULO HOSPITALARIO 10 QU", "value": 0.004297994269340974}, {"from": "IRIARTE", "to": "MUERTE", "value": 0.46275071633237824}, {"from": "IRIARTE", "to": "UPA 17 QU", "value": 0.0014326647564469914}, {"from": "LUCIO MELENDEZ", "to": "ALTA", "value": 0.823346648912561}, {"from": "LUCIO MELENDEZ", "to": "EL CRUCE", "value": 0.000887705281846427}, {"from": "LUCIO MELENDEZ", "to": "MODULO HOSPITALARIO 9 AB", "value": 0.032401242787394584}, {"from": "LUCIO MELENDEZ", "to": "MUERTE", "value": 0.13670661340434975}, {"from": "LUCIO MELENDEZ", "to": "UPA 5 AB", "value": 0.006657789613848202}, {"from": "MI PUEBLO", "to": "ALTA", "value": 0.8331350386674599}, {"from": "MI PUEBLO", "to": "EL CRUCE", "value": 0.003866745984533016}, {"from": "MI PUEBLO", "to": "MODULO HOSPITALARIO 11 FV", "value": 0.06870910172516359}, {"from": "MI PUEBLO", "to": "MUERTE", "value": 0.09250446162998216}, {"from": "MI PUEBLO", "to": "UPA 11 FV", "value": 0.001784651992861392}, {"from": "MODULO HOSPITALARIO 10 QU", "to": "ALTA", "value": 0.8077285579641847}, {"from": "MODULO HOSPITALARIO 10 QU", "to": "EL CRUCE", "value": 0.007540056550424128}, {"from": "MODULO HOSPITALARIO 10 QU", "to": "IRIARTE", "value": 0.008482563619227144}, {"from": "MODULO HOSPITALARIO 10 QU", "to": "MODULO HOSPITALARIO 9 AB", "value": 0.000942507068803016}, {"from": "MODULO HOSPITALARIO 10 QU", "to": "MUERTE", "value": 0.17342130065975495}, {"from": "MODULO HOSPITALARIO 10 QU", "to": "UPA 17 QU", "value": 0.001885014137606032}, {"from": "MODULO HOSPITALARIO 11 FV", "to": "ALTA", "value": 0.7612380250552689}, {"from": "MODULO HOSPITALARIO 11 FV", "to": "EL CRUCE", "value": 0.008843036109064112}, {"from": "MODULO HOSPITALARIO 11 FV", "to": "MI PUEBLO", "value": 0.006632277081798084}, {"from": "MODULO HOSPITALARIO 11 FV", "to": "MUERTE", "value": 0.20044215180545322}, {"from": "MODULO HOSPITALARIO 11 FV", "to": "UPA 11 FV", "value": 0.022844509948415623}, {"from": "MODULO HOSPITALARIO 8 LZ", "to": "ALTA", "value": 0.8823529411764706}, {"from": "MODULO HOSPITALARIO 8 LZ", "to": "MUERTE", "value": 0.11764705882352941}, {"from": "MODULO HOSPITALARIO 9 AB", "to": "ALTA", "value": 0.7768595041322314}, {"from": "MODULO HOSPITALARIO 9 AB", "to": "EL CRUCE", "value": 0.0023612750885478157}, {"from": "MODULO HOSPITALARIO 9 AB", "to": "LUCIO MELENDEZ", "value": 0.020070838252656435}, {"from": "MODULO HOSPITALARIO 9 AB", "to": "MUERTE", "value": 0.16765053128689492}, {"from": "MODULO HOSPITALARIO 9 AB", "to": "UPA 5 AB", "value": 0.03305785123966942}, {"from": "OLLER", "to": "ALTA", "value": 0.9650537634408602}, {"from": "OLLER", "to": "MUERTE", "value": 0.033602150537634407}, {"from": "OLLER", "to": "UPA 10 BE", "value": 0.0013440860215053765}, {"from": "ONATIVIA", "to": "ALTA", "value": 0.8270739910313901}, {"from": "ONATIVIA", "to": "EL CRUCE", "value": 0.0033632286995515697}, {"from": "ONATIVIA", "to": "MI PUEBLO", "value": 0.0002802690582959641}, {"from": "ONATIVIA", "to": "MODULO HOSPITALARIO 10 QU", "value": 0.0002802690582959641}, {"from": "ONATIVIA", "to": "MODULO HOSPITALARIO 9 AB", "value": 0.001961883408071749}, {"from": "ONATIVIA", "to": "MUERTE", "value": 0.1664798206278027}, {"from": "ONATIVIA", "to": "UPA 5 AB", "value": 0.0005605381165919282}, {"from": "POBLACI\u00d3N", "to": "EL CRUCE", "value": 0.0381517173214727}, {"from": "POBLACI\u00d3N", "to": "EVITA PUEBLO", "value": 0.06473931307141093}, {"from": "POBLACI\u00d3N", "to": "IRIARTE", "value": 0.034049913516184825}, {"from": "POBLACI\u00d3N", "to": "LUCIO MELENDEZ", "value": 0.10872251050160613}, {"from": "POBLACI\u00d3N", "to": "MI PUEBLO", "value": 0.1647146034099333}, {"from": "POBLACI\u00d3N", "to": "MODULO HOSPITALARIO 10 QU", "value": 0.049617000247096615}, {"from": "POBLACI\u00d3N", "to": "MODULO HOSPITALARIO 11 FV", "value": 0.0413639733135656}, {"from": "POBLACI\u00d3N", "to": "MODULO HOSPITALARIO 8 LZ", "value": 0.002520385470719051}, {"from": "POBLACI\u00d3N", "to": "MODULO HOSPITALARIO 9 AB", "value": 0.018334568816407215}, {"from": "POBLACI\u00d3N", "to": "OLLER", "value": 0.03676797627872498}, {"from": "POBLACI\u00d3N", "to": "ONATIVIA", "value": 0.1761798863355572}, {"from": "POBLACI\u00d3N", "to": "UPA 10 BE", "value": 0.138472942920682}, {"from": "POBLACI\u00d3N", "to": "UPA 11 FV", "value": 0.04630590560909315}, {"from": "POBLACI\u00d3N", "to": "UPA 17 QU", "value": 0.007462317766246602}, {"from": "POBLACI\u00d3N", "to": "UPA 5 AB", "value": 0.07259698542129973}, {"from": "UPA 10 BE", "to": "ALTA", "value": 0.9992864787727435}, {"from": "UPA 10 BE", "to": "MUERTE", "value": 0.0007135212272565109}, {"from": "UPA 11 FV", "to": "ALTA", "value": 0.6451282051282051}, {"from": "UPA 11 FV", "to": "EL CRUCE", "value": 0.010256410256410256}, {"from": "UPA 11 FV", "to": "MI PUEBLO", "value": 0.017435897435897435}, {"from": "UPA 11 FV", "to": "MODULO HOSPITALARIO 11 FV", "value": 0.29025641025641025}, {"from": "UPA 11 FV", "to": "MUERTE", "value": 0.036923076923076927}, {"from": "UPA 17 QU", "to": "ALTA", "value": 0.6558441558441559}, {"from": "UPA 17 QU", "to": "MODULO HOSPITALARIO 10 QU", "value": 0.33766233766233766}, {"from": "UPA 17 QU", "to": "MUERTE", "value": 0.006493506493506494}, {"from": "UPA 5 AB", "to": "ALTA", "value": 0.654557463672391}, {"from": "UPA 5 AB", "to": "EL CRUCE", "value": 0.0006605019815059445}, {"from": "UPA 5 AB", "to": "LUCIO MELENDEZ", "value": 0.023778071334214}, {"from": "UPA 5 AB", "to": "MODULO HOSPITALARIO 9 AB", "value": 0.26023778071334214}, {"from": "UPA 5 AB", "to": "MUERTE", "value": 0.058784676354029064}, {"from": "UPA 5 AB", "to": "ONATIVIA", "value": 0.0019815059445178335}];
+const allNodes = ["UPA 17 QU", "MODULO HOSPITALARIO 11 FV", "UPA 5 AB", "EVITA PUEBLO", "MUERTE", "MODULO HOSPITALARIO 10 QU", "OLLER", "ALTA", "UPA 10 BE", "MI PUEBLO", "ONATIVIA", "EL CRUCE", "POBLACI\u00d3N", "MODULO HOSPITALARIO 9 AB", "UPA 11 FV", "IRIARTE", "LUCIO MELENDEZ", "MODULO HOSPITALARIO 8 LZ"];
+
+function updateGraph() {
+    const threshold = parseFloat(document.getElementById("threshold").value);
+    const topk = parseInt(document.getElementById("topk").value);
+
+    const selected = Array.from(document.getElementById("hospitales").selectedOptions).map(o => o.value);
+
+    let newEdges = [];
+
+    let filtered = allEdges.filter(e => e.value >= threshold);
+
+    if (selected.length > 0) {
+        filtered = filtered.filter(e => selected.includes(e.from) && selected.includes(e.to));
+    }
+
+    let grouped = {};
+
+    filtered.forEach(e => {
+        if (!grouped[e.from]) grouped[e.from] = [];
+        grouped[e.from].push(e);
+    });
+
+    for (let k in grouped) {
+        grouped[k]
+            .sort((a,b) => b.value - a.value)
+            .slice(0, topk)
+            .forEach(e => newEdges.push(e));
+    }
+
+    edges.clear();
+
+    newEdges.forEach(e => {
+        edges.add({
+            from: e.from,
+            to: e.to,
+            value: e.value * 10,
+            title: (e.value*100).toFixed(2) + "%"
+        });
+    });
+}
+
+window.addEventListener("load", () => {
+
+    const select = document.getElementById("hospitales");
+
+    allNodes.forEach(n => {
+        const opt = document.createElement("option");
+        opt.value = n;
+        opt.text = n;
+        select.appendChild(opt);
+    });
+
+    updateGraph();
+});
+</script>
+
+<div style="position:absolute; top:10px; left:10px; z-index:999; background:white; padding:10px; border-radius:10px;">
+    <label>Threshold</label><br>
+    <input type="range" id="threshold" min="0" max="0.2" step="0.005" value="0.01" oninput="updateGraph()">
+
+    <br><br>
+
+    <label>Top K</label><br>
+    <input type="number" id="topk" value="3" min="1" max="10" onchange="updateGraph()">
+
+    <br><br>
+
+    <label>Hospitales</label><br>
+    <select id="hospitales" multiple size="6" onchange="updateGraph()"></select>
+</div>
+</body>
+</html>
