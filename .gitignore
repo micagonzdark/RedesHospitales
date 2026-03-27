@@ -26,3 +26,5 @@ data/shapefiles/*
 # scripts ignorados
 scripts/generate_eda.py
 scripts/refactor_notebooks.py
+
+notebooks/99_perso_english_JAIIO.ipynb
