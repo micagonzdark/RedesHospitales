@@ -29,5 +29,6 @@ scripts/refactor_notebooks.py
 
 notebooks/99_perso_english_JAIIO.ipynb
 notebooks/99_JAIIO_viejo.ipynb
+notebooks/99_JAIIO_viejo_trayectorias.ipynb
 
 notebooks/results/outputs/*
