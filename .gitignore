@@ -27,7 +27,7 @@ data/shapefiles/*
 scripts/generate_eda.py
 scripts/refactor_notebooks.py
 
-OLD_notebooks/
+OLD_notebooks/*
 OLD_notebooks/99_perso_english_JAIIO.ipynb
 OLD_notebooks/99_JAIIO_viejo.ipynb
 OLD_notebooks/99_JAIIO_viejo_trayectorias.ipynb
