@@ -537,6 +537,24 @@ def agrupar_trayectorias_largas(ruta):
         return 'Más de 3 hospitales (4+)'
     return str(ruta).strip()
 
+
+
+
+def obtener_nivel_inicial(row):
+    """
+    Identificar nivel de complejidad inicial (para el punto 12)
+    Si es trasladado, tomamos el primer elemento del array. Si es estacionario, su nivel único.
+    """
+    if row['es_trasladado']:
+        # Buscamos en trayectorias el array original
+        val = trayectorias.loc[trayectorias['paciente_id'] == row['paciente_id'], 'ruta_complejidad_array'].values
+        if len(val) > 0 and isinstance(val[0], list) and len(val[0]) > 0:
+            return val[0][0]
+    # Si no es trasladado o no hay array, intentamos usar el dato de hospital_origen cruzado antes
+    return row.get('complejidad', np.nan)
+
+
+
 # DICCIONARIO DE COLORES PARA MOTIVOS
 # ==========================================================
 COLORES_MOTIVOS = {
