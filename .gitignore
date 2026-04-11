@@ -32,3 +32,6 @@ notebooks/99_JAIIO_viejo.ipynb
 notebooks/99_JAIIO_viejo_trayectorias.ipynb
 
 notebooks/results/outputs/*
+
+notebooks/exploracion_vieja/*
+notebooks/lib/*

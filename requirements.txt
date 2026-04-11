@@ -1,0 +1,15 @@
+# Dependencias del proyecto RedesHospitales
+# Instalar con: pip install -r requirements.txt
+
+pandas
+numpy
+matplotlib
+seaborn
+openpyxl
+xlsxwriter
+networkx
+folium
+geopandas
+shapely
+scipy
+jupyter
