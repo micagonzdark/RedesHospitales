@@ -7,25 +7,26 @@ Proyecto de análisis de redes de traslados de pacientes en la **Red Sudeste** (
 ```
 RedesHospitales/
 ├── JAIIO_notebooks/          # Notebooks de producción (para publicación)
+│   └── results/outputs/      # Outputs generados (mapas, tablas)
+│         └── /red/
+│         └── /geo/           
 │   ├── 01_redes_basico.ipynb
 │   ├── 02_mapas.ipynb
 │   ├── 03_ranking_trayectorias.ipynb
 │   └── 04_trayectorias_causas.ipynb
 ├── data/                     # Datos (no incluidos en el repo, ver abajo)
 ├── docs/                     # Documentación y notas del proyecto
-├── notebooks/
-│   └── results/outputs/red/  # Outputs generados (mapas, tablas)
 ├── src/                      # Módulos Python reutilizables
 │   ├── config.py
 │   ├── io.py
 │   ├── funciones_complejas.py
 │   └── visualizacion.py
-├── scripts/                  # Scripts auxiliares
+├── scripts/                  # Scripts auxiliares (viejos)
 ├── results/                  # Resultados y análisis
 └── requirements.txt
 ```
 
-> Los notebooks de exploración anteriores se encuentran en `notebooks/exploracion_vieja/` (solo local, ignorados por git).
+> Los notebooks de exploración anteriores se encuentran en `OLD_notebooks/exploracion_vieja/` (solo local, ignorados por git).
 
 ## Notebooks de producción (JAIIO)
 
