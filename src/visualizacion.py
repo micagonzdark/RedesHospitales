@@ -1,3 +1,17 @@
+import pandas as pd
+import numpy as np
+import os
+import networkx as nx
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import matplotlib.lines as mlines
+from matplotlib import cm, colors
+import seaborn as sns
+import geopandas as gpd
+from shapely.geometry import LineString, Point
+import contextily as ctx
+from src.config import *
+from src.procesamiento import *
 
 def asignar_color_origen(nombre):
     return COLORES_ORIGEN[clasificar_hospital(nombre)]
@@ -314,9 +328,13 @@ def agregar_valores_totales(ax):
             ax.text(x_c, total_height + (max_y_axis * 0.01), f'{int(total_height)}', ha="center", va="bottom", fontsize=9, fontweight='bold', color='#333333')
     ax.set_ylim(0, max_y_axis * 1.1)
 
-def graficar_traslados_paciente(df_stats, df_pacientes, es_global=False):
-    global promedios_traslados
+# Fíjate que agregamos promedios_traslados=None al final de los paréntesis
+def graficar_traslados_paciente(df_stats, df_pacientes, es_global=False, promedios_traslados=None):
     
+    # Acá le decimos que si no le pasamos nada, cree un diccionario vacío
+    if promedios_traslados is None:
+        promedios_traslados = {}
+        
     if es_global:
         fig, axes = plt.subplots(figsize=(14, 8)); axes = [axes]
         iteracion = [("Global", None, None)]
@@ -448,3 +466,584 @@ def graficar_tiempo_traslado(df_mov, es_global=False):
 
     plt.tight_layout(rect=[0, 0, 1, 0.95], pad=3.0)
     plt.show()
+
+
+def get_linewidth(weight):
+    """Calcula grosor de línea proporcional al peso"""
+    return np.log1p(weight) * 1.5
+
+def draw_arrow(ax, line, lw=1, color="blue"):
+    """Dibuja flecha sobre LineString en matplotlib"""
+    x, y = line.xy
+    ax.annotate(
+        "",
+        xy=(x[-1], y[-1]),
+        xytext=(x[-2], y[-2]),
+        arrowprops=dict(arrowstyle="->", color=color, lw=lw)
+    )
+
+def graficar_estado_paciente(df, col_id="Id"):
+
+    tipo_map = {
+        "criticas": 3,
+        "intermedias": 2,
+        "generales": 1
+    }
+
+    for paciente_id, grupo in df.groupby(col_id):
+
+        grupo = grupo.sort_values("Fecha inicio")
+
+        niveles = grupo["Tipo al ingreso"].map(tipo_map)
+
+        if niveles.isna().all():
+            continue
+
+        hospitales = grupo["Nombre Hospital"]
+
+        fig, ax = plt.subplots(figsize=(8,3))
+
+        ax.plot(
+            range(1, len(niveles)+1),
+            niveles,
+            marker="o"
+        )
+
+        ax.set_xticks(range(1,len(niveles)+1))
+        ax.set_xticklabels(hospitales, rotation=45, ha="right")
+
+        ax.set_yticks([2,3])
+        ax.set_yticklabels(["Intermedias","Críticas"])
+
+        ax.set_title(f"Paciente {paciente_id}")
+
+        plt.tight_layout()
+
+        display(fig)
+
+def sankey_pacientes(df):
+    df_pairs = df[df["Hospital siguiente"].notna()][["Nombre Hospital", "Hospital siguiente"]]
+    df_pairs = df_pairs.groupby(["Nombre Hospital", "Hospital siguiente"]).size().reset_index(name="count")
+    
+    labels = list(pd.concat([df_pairs["Nombre Hospital"], df_pairs["Hospital siguiente"]]).unique())
+    label_map = {label:i for i,label in enumerate(labels)}
+    
+    source = df_pairs["Nombre Hospital"].map(label_map)
+    target = df_pairs["Hospital siguiente"].map(label_map)
+    value = df_pairs["count"]
+    
+    fig = go.Figure(data=[go.Sankey(
+        node = {"label": labels},
+        link = {"source": source, "target": target, "value": value}
+    )])
+    fig.update_layout(title_text="Flujo de pacientes con ≥3 traslados", font_size=10)
+    fig.show()
+
+def top_flujos_hospitales(traslados, top_n=10, graficar=True, figsize=(10,5)):
+    flujos = traslados.groupby(["Nombre Hospital","Hospital siguiente"]).size().reset_index(name="cantidad").sort_values("cantidad", ascending=False)
+    top = flujos.head(top_n)
+    if graficar:
+        labels = top["Nombre Hospital"] + " → " + top["Hospital siguiente"]
+        plt.figure(figsize=figsize)
+        plt.barh(labels[::-1], top["cantidad"][::-1])
+        plt.title("Flujos más frecuentes entre hospitales")
+        plt.xlabel("Cantidad de traslados")
+        plt.tight_layout()
+        plt.show()
+    return top
+
+def get_curvature(G, u, v, base_curva=0.2):
+    if G.has_edge(v, u):
+        return base_curva if str(u) < str(v) else -base_curva
+    return base_curva
+
+def curved_line(p1, p2, curva_factor=0.2, n=40):
+    """
+    Genera una curva cuadrática entre p1 y p2.
+    - curva_factor: porcentaje de la longitud de la línea para el desplazamiento
+    - garantiza que incluso líneas cortas se curven
+    """
+    x1, y1 = p1
+    x2, y2 = p2
+    dx = x2 - x1
+    dy = y2 - y1
+    length = np.sqrt(dx**2 + dy**2)
+    if length == 0:
+        return LineString([p1, p2])
+
+    # punto medio
+    mx = (x1 + x2) / 2
+    my = (y1 + y2) / 2
+
+    # vector perpendicular normalizado
+    nx = -dy / length
+    ny = dx / length
+
+    # desplazamiento proporcional a la longitud
+    displacement = max(curva_factor * length, 0.0001)
+
+    # punto de control
+    cx = mx + displacement * nx
+    cy = my + displacement * ny
+
+    # generar puntos de la parábola
+    t = np.linspace(0, 1, n)
+    xs = (1 - t)**2 * x1 + 2*(1 - t)*t*cx + t**2*x2
+    ys = (1 - t)**2 * y1 + 2*(1 - t)*t*cy + t**2*y2
+
+    return LineString(list(zip(xs, ys)))
+
+def colapsar_grafo(G):
+    import networkx as nx
+
+    if isinstance(G, nx.MultiDiGraph) or isinstance(G, nx.MultiGraph):
+        H = nx.DiGraph()
+        for u, v, data in G.edges(data=True):
+            w = data.get("weight", 1)
+            if H.has_edge(u, v):
+                H[u][v]["weight"] += w
+            else:
+                H.add_edge(u, v, weight=w)
+        return H
+    return G
+
+def get_edge_style(weights):
+    weights = [max(w, 1) for w in weights]
+
+    norm = colors.LogNorm(vmin=min(weights), vmax=max(weights))
+    cmap = cm.get_cmap("plasma")
+
+    def get_color(w):
+        return cmap(norm(max(w, 1)))
+
+    def get_width(w):
+        return 1 + np.log1p(max(w, 1))
+
+    return get_color, get_width, norm, cmap
+
+def construir_gdf_edges(G, geom_dict, curva_base):
+    edges = []
+    missing_nodes = set()
+    for u, v, d in G.edges(data=True):
+        if u not in geom_dict or v not in geom_dict:
+            missing_nodes.add(u if u not in geom_dict else v)
+            continue
+        p1 = (geom_dict[u].x, geom_dict[u].y)
+        p2 = (geom_dict[v].x, geom_dict[v].y)
+        curva = get_curvature(G, u, v, curva_base)
+        line = curved_line(p1, p2, curva)
+        edges.append({
+            "geometry": line,
+            "weight": d["weight"],
+            "u": u,
+            "v": v
+        })
+    return edges, missing_nodes
+
+def plot_edges_geo(G, hosp_coords, mostrar_nombres=True, mostrar_peso=True):
+    G = colapsar_grafo(G)
+
+    fig, ax = plt.subplots(figsize=(12,12))
+
+    gdf_nodes = gpd.GeoDataFrame(
+        hosp_coords,
+        geometry=gpd.points_from_xy(hosp_coords["Longitud"], hosp_coords["Latitud"])
+    )
+
+    gdf_nodes.plot(ax=ax, color="red", markersize=50, zorder=2)
+
+    geom_dict = {row["Nombre Hospital"]: row.geometry for _, row in gdf_nodes.iterrows()}
+    edges, _ = construir_gdf_edges(G, geom_dict, 0.15)
+
+    weights = [e["weight"] for e in edges]
+    get_color, get_width, norm, cmap = get_edge_style(weights)
+
+    for e in edges:
+        line = e["geometry"]
+        w = e["weight"]
+
+        x, y = line.xy
+        ax.plot(x, y,
+                linewidth=get_width(w),
+                color=get_color(w),
+                alpha=0.7)
+
+        draw_arrow(ax, line, get_width(w))
+
+        if mostrar_peso:
+            xm, ym = line.interpolate(0.5, normalized=True).coords[0]
+            ax.text(xm, ym, str(w), fontsize=8, color=get_color(w))
+
+    if mostrar_nombres:
+        for _, row in gdf_nodes.iterrows():
+            ax.text(row.geometry.x, row.geometry.y, row["Nombre Hospital"], fontsize=8)
+
+    sm = cm.ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array([])
+    plt.colorbar(sm, ax=ax)
+
+    return fig, ax
+
+def plot_red_con_mapa(G, hosp_coords, mostrar_nombres=True, mostrar_peso=True):
+    G = colapsar_grafo(G)
+
+    gdf_nodes = gpd.GeoDataFrame(
+        hosp_coords,
+        geometry=gpd.points_from_xy(hosp_coords["Longitud"], hosp_coords["Latitud"]),
+        crs="EPSG:4326"
+    ).to_crs(epsg=3857)
+
+    geom_dict = dict(zip(gdf_nodes["Nombre Hospital"], gdf_nodes.geometry))
+    edges, _ = construir_gdf_edges(G, geom_dict, 100)  # 👈 más chico
+
+    weights = [e["weight"] for e in edges]
+    get_color, get_width, norm, cmap = get_edge_style(weights)
+
+    fig, ax = plt.subplots(figsize=(10,10))
+
+    # -----------------------
+    # dibujar aristas
+    # -----------------------
+    for e in edges:
+        line = e["geometry"]
+        w = e["weight"]
+
+        x, y = line.xy
+        ax.plot(x, y,
+                linewidth=get_width(w),
+                color=get_color(w),
+                alpha=0.7)
+
+        draw_arrow(ax, line, get_width(w))
+
+        if mostrar_peso:
+            xm, ym = line.interpolate(0.5, normalized=True).coords[0]
+            ax.text(xm, ym, str(w), fontsize=8, color=get_color(w))
+
+    # -----------------------
+    # nodos
+    # -----------------------
+    gdf_nodes.plot(ax=ax, color="red", markersize=40, zorder=2)
+
+    if mostrar_nombres:
+        for _, row in gdf_nodes.iterrows():
+            ax.text(row.geometry.x, row.geometry.y, row["Nombre Hospital"], fontsize=8)
+
+    # -----------------------
+    # 🔥 LIMITES BIEN HECHOS
+    # -----------------------
+    xs = gdf_nodes.geometry.x
+    ys = gdf_nodes.geometry.y
+
+    xmin, xmax = np.percentile(xs, [1, 99])
+    ymin, ymax = np.percentile(ys, [1, 99])
+
+    # padding (clave para que no quede apretado)
+    pad_x = (xmax - xmin) * 0.05
+    pad_y = (ymax - ymin) * 0.05
+
+    ax.set_xlim(xmin - pad_x, xmax + pad_x)
+    ax.set_ylim(ymin - pad_y, ymax + pad_y)
+
+    # -----------------------
+    # basemap
+    # -----------------------
+    ctx.add_basemap(ax, source=ctx.providers.CartoDB.Positron)
+
+    ax.axis("off")
+
+    # -----------------------
+    # colorbar
+    # -----------------------
+    sm = cm.ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array([])
+    plt.colorbar(sm, ax=ax)
+
+    return fig, ax
+
+def plot_red_sobre_amba(gdf_edges, gdf_nodes, municipios_amba, mostrar_nombres=True, mostrar_peso=True):
+    municipios = municipios_amba.to_crs(epsg=3857)
+    hospitales = gdf_nodes.to_crs(epsg=3857)
+    edges = gdf_edges.to_crs(epsg=3857)
+
+    fig, ax = plt.subplots(figsize=(12,12))
+    municipios.plot(ax=ax, alpha=0.3, edgecolor="black", color="lightgrey")
+
+    if not edges.empty:
+        norm = colors.LogNorm(vmin=max(edges["weight"].min(), 1), vmax=edges["weight"].max())
+        cmap = cm.get_cmap("plasma")
+
+        sm = cm.ScalarMappable(cmap=cmap, norm=norm)
+        sm.set_array([])
+
+        for _, row in edges.iterrows():
+            line = row.geometry
+            w = max(row["weight"], 1)
+
+            lw = np.log1p(w) * 1.5 if mostrar_peso else 1
+            color = cmap(norm(w))
+
+            x, y = line.xy
+            ax.plot(x, y, linewidth=lw, alpha=0.7, color=color)
+            draw_arrow(ax, line, lw)
+
+            if mostrar_peso:
+                xm, ym = line.interpolate(0.5, normalized=True).coords[0]
+                ax.text(xm, ym, str(row["weight"]), fontsize=8, color=color)
+
+        cbar = plt.colorbar(sm, ax=ax, fraction=0.03, pad=0.04)
+        cbar.set_label("Cantidad de traslados (log scale)")
+
+    hospitales.plot(ax=ax, color="red", markersize=50, zorder=2)
+
+    if mostrar_nombres:
+        for _, row in hospitales.iterrows():
+            if row.geometry is not None:
+                ax.annotate(
+                    row["Nombre Hospital"],
+                    xy=(row.geometry.x, row.geometry.y),
+                    xytext=(5,5),
+                    textcoords="offset points",
+                    fontsize=8
+                )
+
+    ax.set_title("Red hospitalaria sobre AMBA")
+    ax.axis("off")
+
+    return fig, ax
+
+def plot_red_interactiva(G, hosp_coords):
+    import folium
+    import branca.colormap as bcm
+
+    G = colapsar_grafo(G)
+
+    coord_dict = {
+        row["Nombre Hospital"]: (row["Latitud"], row["Longitud"])
+        for _, row in hosp_coords.iterrows()
+    }
+
+    weights = [d["weight"] for _,_,d in G.edges(data=True)]
+    weights = [max(w,1) for w in weights]
+
+    colormap = bcm.linear.plasma.scale(min(weights), max(weights))
+
+    m = folium.Map(tiles="cartodbpositron")
+
+    # nodos
+    for name, (lat, lon) in coord_dict.items():
+        folium.CircleMarker(
+            location=[lat, lon],
+            radius=4,
+            color="black",
+            fill=True,
+            popup=name
+        ).add_to(m)
+
+    # edges con curva
+    for u, v, d in G.edges(data=True):
+        if u not in coord_dict or v not in coord_dict:
+            continue
+
+        p1 = coord_dict[u][::-1]  # lon, lat
+        p2 = coord_dict[v][::-1]
+
+        curva = get_curvature(G, u, v, 0.2)
+        line = curved_line(p1, p2, curva, n=20)
+
+        coords = [(y, x) for x, y in line.coords]  # volver a lat,lon
+
+        w = max(d["weight"], 1)
+
+        folium.PolyLine(
+            coords,
+            weight=1 + np.log1p(w),
+            color=colormap(w),
+            opacity=0.8,
+            tooltip=f"{u} → {v}: {w}"
+        ).add_to(m)
+
+    colormap.caption = "Cantidad de traslados"
+    colormap.add_to(m)
+
+    return m
+
+
+def graficar_heatmaps(df_probabilidades, df_cantidades):
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    fig.patch.set_facecolor('white')
+    sns.heatmap(df_probabilidades, annot=True, fmt=".2f", cmap="Blues", linewidths=0.5, linecolor='lightgray', vmin=0, vmax=1, ax=axes[0], cbar_kws={'label': 'Probabilidad de Transición'})
+    axes[0].set_title("Matriz de Transición (Probabilidades)", fontsize=16, fontweight='bold', pad=15)
+    axes[0].set_ylabel("Nivel de Origen", fontsize=12, fontweight='bold')
+    axes[0].set_xlabel("Nivel de Destino", fontsize=12, fontweight='bold')
+    sns.heatmap(df_cantidades, annot=True, fmt="d", cmap="Oranges", linewidths=0.5, linecolor='lightgray', ax=axes[1], cbar_kws={'label': 'Cantidad de Traslados'})
+    axes[1].set_title("Matriz de Frecuencia (Cantidades Absolutas)", fontsize=16, fontweight='bold', pad=15)
+    axes[1].set_ylabel("Nivel de Origen", fontsize=12, fontweight='bold')
+    axes[1].set_xlabel("Nivel de Destino", fontsize=12, fontweight='bold')
+    for ax in axes:
+        ax.xaxis.tick_top()
+        ax.xaxis.set_label_position('top')
+        plt.setp(ax.get_xticklabels(), rotation=45, ha='left', fontweight='bold')
+        plt.setp(ax.get_yticklabels(), fontweight='bold')
+    plt.tight_layout()
+    plt.show()
+
+def graficar_top_10(df, x_col, y_col, titulo, xlabel, ylabel, sufijo="pac.", palette="viridis", subtitulo=None):
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    fig, ax = plt.subplots(figsize=(12, 7))
+    fig.patch.set_facecolor('white')
+    sns.barplot(data=df, x=x_col, y=y_col, palette=palette, ax=ax)
+    margen = df[x_col].max() * 0.015 
+    for index, row in df.iterrows():
+        texto_etiqueta = f"{int(row[x_col])} {sufijo} ({row['Porcentaje']:.1f}%)"
+        ax.text(row[x_col] + margen, index, texto_etiqueta, color='#333333', va="center", fontweight='bold', fontsize=11)
+    ax.set_title(titulo, fontsize=16, fontweight='bold', pad=20)
+    ax.set_xlabel(xlabel, fontsize=12, fontweight='bold')
+    ax.set_ylabel(ylabel, fontsize=12, fontweight='bold')
+    if subtitulo:
+        plt.figtext(0.5, 0.92, subtitulo, ha="center", fontsize=11, color='dimgray')
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
+    else:
+        plt.tight_layout()
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.tick_params(axis='y', labelsize=12)
+    plt.show()
+
+
+def graficar_top_10_apilado(df_pivot, titulo, xlabel, ylabel, total_general, sufijo="pac."):
+    """Grafica barras horizontales apiladas según el motivo de egreso."""
+    fig, ax = plt.subplots(figsize=(12, 7))
+    fig.patch.set_facecolor('white')
+
+    # Asegurarnos de que las columnas respeten los colores de nuestro diccionario
+    colores_barras = [COLORES_MOTIVOS.get(col, '#333333') for col in df_pivot.columns]
+
+    # Crear el gráfico de barras apilado
+    df_pivot.plot(kind='barh', stacked=True, color=colores_barras, ax=ax, width=0.7)
+
+    # Calcular los totales por barra para poner la etiqueta final
+    totales = df_pivot.sum(axis=1)
+    margen = totales.max() * 0.015 
+    
+    for i, (idx, total) in enumerate(totales.items()):
+        if total > 0:
+            porcentaje = (total / total_general) * 100
+            texto_etiqueta = f"{int(total)} {sufijo} ({porcentaje:.1f}%)"
+            ax.text(total + margen, i, texto_etiqueta, 
+                    color='#333333', va="center", fontweight='bold', fontsize=11)
+
+    ax.set_title(titulo, fontsize=16, fontweight='bold', pad=20)
+    ax.set_xlabel(xlabel, fontsize=12, fontweight='bold')
+    ax.set_ylabel(ylabel, fontsize=12, fontweight='bold')
+
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.tick_params(axis='y', labelsize=12)
+
+    # Configurar leyenda afuera del gráfico
+    plt.legend(title='Motivo Fin de Caso', bbox_to_anchor=(1.02, 1), loc='upper left', frameon=False)
+    plt.tight_layout()
+    
+    plt.show()
+
+    
+def graficar_grilla_periodos(pivot_periodos, orden_columnas):
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import numpy as np
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+    fig.patch.set_facecolor('white')
+    axes = axes.flatten()
+    colores_periodos = sns.color_palette("Spectral", n_colors=len(orden_columnas))
+    max_x = pivot_periodos.max().max() * 1.15
+    for idx, periodo in enumerate(orden_columnas):
+        ax = axes[idx]
+        valores = pivot_periodos[periodo]
+        y_pos = np.arange(len(valores))
+        ax.barh(y_pos, valores, color=colores_periodos[idx], height=0.7)
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels(valores.index, fontweight='bold', fontsize=11)
+        ax.set_xlim(0, max_x)
+        ax.set_title(f"{periodo}", fontsize=15, fontweight='bold', pad=10)
+        ax.set_xlabel("Traslados", fontsize=11, color='dimgray')
+        for i, v in enumerate(valores):
+            if v > 0:
+                ax.text(v + (max_x * 0.015), i, str(int(v)), va='center', fontweight='bold', color='#333333', fontsize=10)
+        sns.despine(ax=ax)
+    plt.suptitle("Evolución del Top 10 Global de Traslados por Ola", fontsize=18, fontweight='bold', y=0.98)
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.show()
+
+def graficar_grilla_trayectorias_periodos(pivot_periodos, orden_columnas):
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import numpy as np
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+    fig.patch.set_facecolor('white')
+    axes = axes.flatten()
+    colores_periodos = sns.color_palette("Spectral", n_colors=len(orden_columnas))
+    max_x = pivot_periodos.max().max() * 1.15
+    for idx, periodo in enumerate(orden_columnas):
+        ax = axes[idx]
+        valores = pivot_periodos[periodo]
+        y_pos = np.arange(len(valores))
+        ax.barh(y_pos, valores, color=colores_periodos[idx], height=0.7)
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels(valores.index, fontweight='bold', fontsize=11)
+        ax.set_xlim(0, max_x)
+        ax.set_title(f"{periodo}", fontsize=15, fontweight='bold', pad=10)
+        ax.set_xlabel("Pacientes", fontsize=11, color='dimgray')
+        for i, v in enumerate(valores):
+            if v > 0:
+                ax.text(v + (max_x * 0.015), i, str(int(v)), va='center', fontweight='bold', color='#333333', fontsize=10)
+        sns.despine(ax=ax)
+    plt.suptitle("Evolución del Top 10 de Trayectorias Completas por Ola", fontsize=18, fontweight='bold', y=0.98)
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.show()
+
+def graficar_grilla_trayectorias_dinamico(df_cantidades, df_rankings, orden_columnas, n_top=8):
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    import numpy as np
+    fig, axes = plt.subplots(2, 2, figsize=(18, 14)) 
+    fig.patch.set_facecolor('white')
+    axes = axes.flatten()
+    colores_periodos = sns.color_palette("Spectral", n_colors=len(orden_columnas))
+    max_x = df_cantidades.max().max() * 1.2
+    for idx, periodo in enumerate(orden_columnas):
+        ax = axes[idx]
+        valores = df_cantidades[periodo]
+        rankings = df_rankings[periodo]
+        y_pos = np.arange(len(valores))
+        colores_barras = [
+            colores_periodos[idx] if not pd.isna(rankings[ruta]) else '#e0e0e0'
+            for ruta in valores.index
+        ]
+        ax.barh(y_pos, valores, color=colores_barras, height=0.7)
+        ax.set_yticks(y_pos)
+        ax.set_yticklabels(valores.index, fontweight='bold', fontsize=10)
+        ax.set_xlim(0, max_x)
+        ax.set_title(f"{periodo}", fontsize=15, fontweight='bold', pad=10)
+        ax.set_xlabel("Pacientes", fontsize=11, color='dimgray')
+        for i, (ruta, v) in enumerate(valores.items()):
+            if v > 0:
+                rank = rankings[ruta]
+                if not pd.isna(rank):
+                    texto = f"[#{int(rank)}]  {int(v)} pac."
+                    font_weight = 'bold'
+                    color_texto = '#c21807' if rank <= 3 else '#333333'
+                else:
+                    texto = f"{int(v)}"
+                    font_weight = 'normal'
+                    color_texto = 'gray'
+                ax.text(v + (max_x * 0.015), i, texto, va='center', fontweight=font_weight, color=color_texto, fontsize=10)
+        sns.despine(ax=ax)
+    plt.suptitle(f"Evolución Dinámica: Unión de las Top {n_top} Trayectorias por Ola", fontsize=18, fontweight='bold', y=0.98)
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.show()
+
