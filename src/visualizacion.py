@@ -12,6 +12,8 @@ from shapely.geometry import LineString, Point
 import contextily as ctx
 from src.config import *
 from src.procesamiento import *
+from pathlib import Path
+
 
 def asignar_color_origen(nombre):
     return COLORES_ORIGEN[clasificar_hospital(nombre)]
@@ -274,17 +276,33 @@ def generar_tabla_resumen(pacientes_df, traslados_df, periodos, hospitales_conoc
     orden_filas = ['Días totales', 'Admisiones (Prom. diario)', 'Pacientes admitidos', 'Traslados totales (% admisiones)', 'Pacientes trasladados', 'Promedio diario de traslados', 'Traslados en ambulancia (% total)', 'Traslados UPA-Módulos', 'Rutas UPA-Módulos', 'Rutas totales | Ambulancia', 'Promedio traslados por ruta | Ambulancia']
     return pd.DataFrame(columnas_tabla).loc[orden_filas]
 
+
 def exportar_tabla_estetica(tabla_df):
     """ Dibuja la tabla con Matplotlib y exporta a LaTeX """
+    
+    # --- GESTIÓN DE RUTAS (CORRECCIÓN) ---
+    ruta_salida = Path("results") / "outputs" / "red"
+    ruta_salida.mkdir(parents=True, exist_ok=True) 
+    archivo_salida = ruta_salida / "tabla_resumen.tex"
+    # -------------------------------------
+
     # 1. LaTeX
     latex_code = tabla_df.reset_index().style.format(escape="latex").hide(axis="index").to_latex(
-        buf="results/outputs/red/tabla_resumen.tex", column_format='l' + 'c' * len(tabla_df.columns), hrules=True
+        buf=archivo_salida, 
+        column_format='l' + 'c' * len(tabla_df.columns), 
+        hrules=True
     )
     
     # 2. Matplotlib
     fig, ax = plt.subplots(figsize=(16, 8))
     ax.axis('tight'); ax.axis('off')
-    tabla_mpl = ax.table(cellText=tabla_df.values, rowLabels=tabla_df.index, colLabels=tabla_df.columns, loc='center', cellLoc='center')
+    tabla_mpl = ax.table(
+        cellText=tabla_df.values, 
+        rowLabels=tabla_df.index, 
+        colLabels=tabla_df.columns, 
+        loc='center', 
+        cellLoc='center'
+    )
     
     tabla_mpl.auto_set_font_size(False)
     tabla_mpl.set_fontsize(12)
@@ -292,14 +310,19 @@ def exportar_tabla_estetica(tabla_df):
 
     for (row, col), cell in tabla_mpl.get_celld().items():
         cell.set_edgecolor('#cccccc')
-        if row == 0: cell.set_facecolor('#4c72b0'); cell.set_text_props(weight='bold', color='white')
-        elif col == -1: cell.set_facecolor('#e8e8e8'); cell.set_text_props(weight='bold', color='#333333'); cell._loc = 'left'
-        else: cell.set_facecolor('#f5f5f5' if row % 2 == 0 else '#ffffff')
+        if row == 0: 
+            cell.set_facecolor('#4c72b0')
+            cell.set_text_props(weight='bold', color='white')
+        elif col == -1: 
+            cell.set_facecolor('#e8e8e8')
+            cell.set_text_props(weight='bold', color='#333333')
+            cell._loc = 'left'
+        else: 
+            cell.set_facecolor('#f5f5f5' if row % 2 == 0 else '#ffffff')
 
     plt.title("Resumen de Admisiones y Traslados por Periodo", fontsize=18, fontweight='bold', pad=20)
     plt.tight_layout()
     plt.show()
-
 
 
 # Funciones de Anotación Originales (Intactas)

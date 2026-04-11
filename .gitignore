@@ -27,11 +27,11 @@ data/shapefiles/*
 scripts/generate_eda.py
 scripts/refactor_notebooks.py
 
-notebooks/99_perso_english_JAIIO.ipynb
-notebooks/99_JAIIO_viejo.ipynb
-notebooks/99_JAIIO_viejo_trayectorias.ipynb
+OLD_notebooks/99_perso_english_JAIIO.ipynb
+OLD_notebooks/99_JAIIO_viejo.ipynb
+OLD_notebooks/99_JAIIO_viejo_trayectorias.ipynb
 
-notebooks/results/outputs/*
+OLD_notebooks/results/outputs/*
 
-notebooks/exploracion_vieja/*
-notebooks/lib/*
+OLD_notebooks/exploracion_vieja/*
+OLD_notebooks/lib/*
