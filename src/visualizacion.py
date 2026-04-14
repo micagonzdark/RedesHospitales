@@ -936,22 +936,24 @@ def graficar_top_10(df, x_col, y_col, titulo, xlabel, ylabel, sufijo="pac.", pal
     ax.tick_params(axis='y', labelsize=12)
     plt.show()
 
-
+    
 def graficar_top_10_apilado(df_pivot, titulo, xlabel, ylabel, total_general, sufijo="pac."):
     """Grafica barras horizontales apiladas según el motivo de egreso."""
     fig, ax = plt.subplots(figsize=(12, 7))
     fig.patch.set_facecolor('white')
 
-    # Asegurarnos de que las columnas respeten los colores de nuestro diccionario
     colores_barras = [COLORES_MOTIVOS.get(col, '#333333') for col in df_pivot.columns]
 
-    # Crear el gráfico de barras apilado
     df_pivot.plot(kind='barh', stacked=True, color=colores_barras, ax=ax, width=0.7)
 
-    # Calcular los totales por barra para poner la etiqueta final
     totales = df_pivot.sum(axis=1)
     margen = totales.max() * 0.015 
     
+    # --- LA SOLUCIÓN MÁGICA ESTÁ ACÁ ---
+    # Estiramos el eje X un 25% más allá del valor máximo para que entren los textos
+    ax.set_xlim(0, totales.max() * 1.25)
+    # -----------------------------------
+
     for i, (idx, total) in enumerate(totales.items()):
         if total > 0:
             porcentaje = (total / total_general) * 100
@@ -967,12 +969,11 @@ def graficar_top_10_apilado(df_pivot, titulo, xlabel, ylabel, total_general, suf
     ax.spines['top'].set_visible(False)
     ax.tick_params(axis='y', labelsize=12)
 
-    # Configurar leyenda afuera del gráfico
+    # La leyenda ahora se apoya en ese nuevo borde invisible
     plt.legend(title='Motivo Fin de Caso', bbox_to_anchor=(1.02, 1), loc='upper left', frameon=False)
     plt.tight_layout()
     
     plt.show()
-
     
 def graficar_grilla_periodos(pivot_periodos, orden_columnas):
     import matplotlib.pyplot as plt
