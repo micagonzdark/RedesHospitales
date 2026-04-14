@@ -892,16 +892,22 @@ def plot_red_interactiva(G, hosp_coords):
     return m
 
 
-def graficar_heatmaps(df_probabilidades, df_cantidades, nombre_archivo=None):
+def graficar_heatmaps(df_probabilidades, df_cantidades, nombre_archivo=None, subcarpeta="general"):
     import matplotlib.pyplot as plt
     import seaborn as sns
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
     fig.patch.set_facecolor('white')
-    sns.heatmap(df_probabilidades, annot=True, fmt=".2f", cmap="Blues", linewidths=0.5, linecolor='lightgray', vmin=0, vmax=1, ax=axes[0], cbar_kws={'label': 'Probabilidad de Transición'})
-    axes[0].set_title("Matriz de Transición (Probabilidades)", fontsize=16, fontweight='bold', pad=15)
+    # Probabilidades → CMAP_PROBABILIDAD (Purples)
+    sns.heatmap(df_probabilidades, annot=True, fmt=".2f", cmap=CMAP_PROBABILIDAD,
+                linewidths=0.5, linecolor='lightgray', vmin=0, vmax=1, ax=axes[0],
+                cbar_kws={'label': 'Probabilidad de Transicion'})
+    axes[0].set_title("Matriz de Transicion (Probabilidades)", fontsize=16, fontweight='bold', pad=15)
     axes[0].set_ylabel("Nivel de Origen", fontsize=12, fontweight='bold')
     axes[0].set_xlabel("Nivel de Destino", fontsize=12, fontweight='bold')
-    sns.heatmap(df_cantidades, annot=True, fmt="d", cmap="Oranges", linewidths=0.5, linecolor='lightgray', ax=axes[1], cbar_kws={'label': 'Cantidad de Traslados'})
+    # Cantidades → CMAP_FRECUENCIA (YlGnBu)
+    sns.heatmap(df_cantidades, annot=True, fmt="d", cmap=CMAP_FRECUENCIA,
+                linewidths=0.5, linecolor='lightgray', ax=axes[1],
+                cbar_kws={'label': 'Cantidad de Traslados'})
     axes[1].set_title("Matriz de Frecuencia (Cantidades Absolutas)", fontsize=16, fontweight='bold', pad=15)
     axes[1].set_ylabel("Nivel de Origen", fontsize=12, fontweight='bold')
     axes[1].set_xlabel("Nivel de Destino", fontsize=12, fontweight='bold')
@@ -912,16 +918,19 @@ def graficar_heatmaps(df_probabilidades, df_cantidades, nombre_archivo=None):
         plt.setp(ax.get_yticklabels(), fontweight='bold')
     plt.tight_layout()
     if nombre_archivo is not None:
-        plt.savefig(f'graficos_overleaf/{nombre_archivo}.pdf', bbox_inches='tight', dpi=300)
+        guardar_pdf(nombre_archivo, subcarpeta=subcarpeta)
     plt.show()
 
-def graficar_top_10(df, x_col, y_col, titulo, xlabel, ylabel, sufijo="pac.", palette="viridis", subtitulo=None, nombre_archivo=None):
+def graficar_top_10(df, x_col, y_col, titulo, xlabel, ylabel, sufijo="pac.", palette=None, subtitulo=None, nombre_archivo=None, subcarpeta="general"):
     import matplotlib.pyplot as plt
     import seaborn as sns
+    # Usa la paleta categórica académica si no se especifica otra
+    if palette is None:
+        palette = PALETA_GENERAL[:len(df)]
     fig, ax = plt.subplots(figsize=(12, 7))
     fig.patch.set_facecolor('white')
     sns.barplot(data=df, x=x_col, y=y_col, palette=palette, ax=ax)
-    margen = df[x_col].max() * 0.015 
+    margen = df[x_col].max() * 0.015
     for index, row in df.iterrows():
         texto_etiqueta = f"{int(row[x_col])} {sufijo} ({row['Porcentaje']:.1f}%)"
         ax.text(row[x_col] + margen, index, texto_etiqueta, color='#333333', va="center", fontweight='bold', fontsize=11)
@@ -937,12 +946,12 @@ def graficar_top_10(df, x_col, y_col, titulo, xlabel, ylabel, sufijo="pac.", pal
     ax.spines['top'].set_visible(False)
     ax.tick_params(axis='y', labelsize=12)
     if nombre_archivo is not None:
-        plt.savefig(f'graficos_overleaf/{nombre_archivo}.pdf', bbox_inches='tight', dpi=300)
+        guardar_pdf(nombre_archivo, subcarpeta=subcarpeta)
     plt.show()
 
     
-def graficar_top_10_apilado(df_pivot, titulo, xlabel, ylabel, total_general, sufijo="pac.", nombre_archivo=None):
-    """Grafica barras horizontales apiladas según el motivo de egreso."""
+def graficar_top_10_apilado(df_pivot, titulo, xlabel, ylabel, total_general, sufijo="pac.", nombre_archivo=None, subcarpeta="desenlaces"):
+    """Grafica barras horizontales apiladas por motivo de egreso usando la paleta semantica COLORES_MOTIVOS."""
     fig, ax = plt.subplots(figsize=(12, 7))
     fig.patch.set_facecolor('white')
 
@@ -951,18 +960,14 @@ def graficar_top_10_apilado(df_pivot, titulo, xlabel, ylabel, total_general, suf
     df_pivot.plot(kind='barh', stacked=True, color=colores_barras, ax=ax, width=0.7)
 
     totales = df_pivot.sum(axis=1)
-    margen = totales.max() * 0.015 
-    
-    # --- LA SOLUCIÓN MÁGICA ESTÁ ACÁ ---
-    # Estiramos el eje X un 25% más allá del valor máximo para que entren los textos
+    margen = totales.max() * 0.015
     ax.set_xlim(0, totales.max() * 1.25)
-    # -----------------------------------
 
     for i, (idx, total) in enumerate(totales.items()):
         if total > 0:
             porcentaje = (total / total_general) * 100
             texto_etiqueta = f"{int(total)} {sufijo} ({porcentaje:.1f}%)"
-            ax.text(total + margen, i, texto_etiqueta, 
+            ax.text(total + margen, i, texto_etiqueta,
                     color='#333333', va="center", fontweight='bold', fontsize=11)
 
     ax.set_title(titulo, fontsize=16, fontweight='bold', pad=20)
@@ -973,27 +978,27 @@ def graficar_top_10_apilado(df_pivot, titulo, xlabel, ylabel, total_general, suf
     ax.spines['top'].set_visible(False)
     ax.tick_params(axis='y', labelsize=12)
 
-    # La leyenda ahora se apoya en ese nuevo borde invisible
     plt.legend(title='Motivo Fin de Caso', bbox_to_anchor=(1.02, 1), loc='upper left', frameon=False)
     plt.tight_layout()
     if nombre_archivo is not None:
-        plt.savefig(f'graficos_overleaf/{nombre_archivo}.pdf', bbox_inches='tight', dpi=300)
+        guardar_pdf(nombre_archivo, subcarpeta=subcarpeta)
     plt.show()
     
-def graficar_grilla_periodos(pivot_periodos, orden_columnas, nombre_archivo=None):
+def graficar_grilla_periodos(pivot_periodos, orden_columnas, nombre_archivo=None, subcarpeta="evolucion"):
     import matplotlib.pyplot as plt
     import seaborn as sns
     import numpy as np
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
     fig.patch.set_facecolor('white')
     axes = axes.flatten()
-    colores_periodos = sns.color_palette("Spectral", n_colors=len(orden_columnas))
+    # Usa la paleta de períodos académica (una barra por panel)
     max_x = pivot_periodos.max().max() * 1.15
     for idx, periodo in enumerate(orden_columnas):
         ax = axes[idx]
+        color = PALETA_PERIODOS[idx % len(PALETA_PERIODOS)]
         valores = pivot_periodos[periodo]
         y_pos = np.arange(len(valores))
-        ax.barh(y_pos, valores, color=colores_periodos[idx], height=0.7)
+        ax.barh(y_pos, valores, color=color, height=0.7)
         ax.set_yticks(y_pos)
         ax.set_yticklabels(valores.index, fontweight='bold', fontsize=11)
         ax.set_xlim(0, max_x)
@@ -1003,26 +1008,26 @@ def graficar_grilla_periodos(pivot_periodos, orden_columnas, nombre_archivo=None
             if v > 0:
                 ax.text(v + (max_x * 0.015), i, str(int(v)), va='center', fontweight='bold', color='#333333', fontsize=10)
         sns.despine(ax=ax)
-    plt.suptitle("Evolución del Top 10 Global de Traslados por Ola", fontsize=18, fontweight='bold', y=0.98)
+    plt.suptitle("Evolucion del Top 10 Global de Traslados por Ola", fontsize=18, fontweight='bold', y=0.98)
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     if nombre_archivo is not None:
-        plt.savefig(f'graficos_overleaf/{nombre_archivo}.pdf', bbox_inches='tight', dpi=300)
+        guardar_pdf(nombre_archivo, subcarpeta=subcarpeta)
     plt.show()
 
-def graficar_grilla_trayectorias_periodos(pivot_periodos, orden_columnas, nombre_archivo=None):
+def graficar_grilla_trayectorias_periodos(pivot_periodos, orden_columnas, nombre_archivo=None, subcarpeta="evolucion"):
     import matplotlib.pyplot as plt
     import seaborn as sns
     import numpy as np
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
     fig.patch.set_facecolor('white')
     axes = axes.flatten()
-    colores_periodos = sns.color_palette("Spectral", n_colors=len(orden_columnas))
     max_x = pivot_periodos.max().max() * 1.15
     for idx, periodo in enumerate(orden_columnas):
         ax = axes[idx]
+        color = PALETA_PERIODOS[idx % len(PALETA_PERIODOS)]
         valores = pivot_periodos[periodo]
         y_pos = np.arange(len(valores))
-        ax.barh(y_pos, valores, color=colores_periodos[idx], height=0.7)
+        ax.barh(y_pos, valores, color=color, height=0.7)
         ax.set_yticks(y_pos)
         ax.set_yticklabels(valores.index, fontweight='bold', fontsize=11)
         ax.set_xlim(0, max_x)
@@ -1032,29 +1037,29 @@ def graficar_grilla_trayectorias_periodos(pivot_periodos, orden_columnas, nombre
             if v > 0:
                 ax.text(v + (max_x * 0.015), i, str(int(v)), va='center', fontweight='bold', color='#333333', fontsize=10)
         sns.despine(ax=ax)
-    plt.suptitle("Evolución del Top 10 de Trayectorias Completas por Ola", fontsize=18, fontweight='bold', y=0.98)
+    plt.suptitle("Evolucion del Top 10 de Trayectorias Completas por Ola", fontsize=18, fontweight='bold', y=0.98)
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     if nombre_archivo is not None:
-        plt.savefig(f'graficos_overleaf/{nombre_archivo}.pdf', bbox_inches='tight', dpi=300)
+        guardar_pdf(nombre_archivo, subcarpeta=subcarpeta)
     plt.show()
 
-def graficar_grilla_trayectorias_dinamico(df_cantidades, df_rankings, orden_columnas, n_top=8, nombre_archivo=None):
+def graficar_grilla_trayectorias_dinamico(df_cantidades, df_rankings, orden_columnas, n_top=8, nombre_archivo=None, subcarpeta="evolucion"):
     import pandas as pd
     import matplotlib.pyplot as plt
     import seaborn as sns
     import numpy as np
-    fig, axes = plt.subplots(2, 2, figsize=(18, 14)) 
+    fig, axes = plt.subplots(2, 2, figsize=(18, 14))
     fig.patch.set_facecolor('white')
     axes = axes.flatten()
-    colores_periodos = sns.color_palette("Spectral", n_colors=len(orden_columnas))
     max_x = df_cantidades.max().max() * 1.2
     for idx, periodo in enumerate(orden_columnas):
         ax = axes[idx]
+        color_periodo = PALETA_PERIODOS[idx % len(PALETA_PERIODOS)]
         valores = df_cantidades[periodo]
         rankings = df_rankings[periodo]
         y_pos = np.arange(len(valores))
         colores_barras = [
-            colores_periodos[idx] if not pd.isna(rankings[ruta]) else '#e0e0e0'
+            color_periodo if not pd.isna(rankings[ruta]) else '#e0e0e0'
             for ruta in valores.index
         ]
         ax.barh(y_pos, valores, color=colores_barras, height=0.7)
@@ -1076,9 +1081,9 @@ def graficar_grilla_trayectorias_dinamico(df_cantidades, df_rankings, orden_colu
                     color_texto = 'gray'
                 ax.text(v + (max_x * 0.015), i, texto, va='center', fontweight=font_weight, color=color_texto, fontsize=10)
         sns.despine(ax=ax)
-    plt.suptitle(f"Evolución Dinámica: Unión de las Top {n_top} Trayectorias por Ola", fontsize=18, fontweight='bold', y=0.98)
+    plt.suptitle(f"Evolucion Dinamica: Union de las Top {n_top} Trayectorias por Ola", fontsize=18, fontweight='bold', y=0.98)
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     if nombre_archivo is not None:
-        plt.savefig(f'graficos_overleaf/{nombre_archivo}.pdf', bbox_inches='tight', dpi=300)
+        guardar_pdf(nombre_archivo, subcarpeta=subcarpeta)
     plt.show()
 

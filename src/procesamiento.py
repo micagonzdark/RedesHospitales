@@ -555,15 +555,9 @@ def obtener_nivel_inicial(row):
 
 
 
-# DICCIONARIO DE COLORES PARA MOTIVOS
-# ==========================================================
-COLORES_MOTIVOS = {
-    'alta': '#2ca02c',             # Verde
-    'muerte': '#d62728',           # Rojo
-    'hospital externo': '#ff7f0e', # Naranja
-    'alta hotel': '#1f77b4',       # Azul
-    'otro/desconocido': '#7f7f7f'  # Gris
-}
+# COLORES_MOTIVOS se define en src/config.py y se importa via 'from src.config import *'.
+# La definicion canonica esta en config.py para garantizar coherencia en todo el proyecto.
+
 
 
 def calcular_matrices_transicion(rutas):
