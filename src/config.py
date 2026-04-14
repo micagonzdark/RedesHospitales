@@ -58,42 +58,52 @@ N_TOP = 10
 # ==========================================
 # PALETAS DE COLORES — ESTILO ACADÉMICO
 # ==========================================
+# =========================================================
+# CONFIGURACIÓN DE COLORES Y PALETAS (ESTILO ACADÉMICO)
+# =========================================================
 
-# A. Paleta categórica general (colorblind-friendly, tonos sobrios)
-# Usada en barras donde el color solo distingue categorías, sin semántica propia.
+# A. Barras categóricas (graficar_top_10, rankings generales)
+# Escala monocromática: tonos del mismo azul acero para no distraer.
 PALETA_GENERAL = [
-    "#4878CF",  # Azul acero
-    "#D65F00",  # Naranja apagado
-    "#6A9E6F",  # Verde oliva
-    "#8E72B0",  # Violeta grisáceo
-    "#C4A35A",  # Ocre / dorado suave
-    "#4DADA4",  # Teal apagado
-    "#C46062",  # Rojo ladrillo suave
-    "#8B8682",  # Gris cálido
+    "#08306B",  # Azul muy oscuro (para el valor más alto)
+    "#08519C",
+    "#2171B5",
+    "#4292C6",
+    "#6BAED6",
+    "#9ECAE1",
+    "#C6DBEF",
+    "#DEEBF7"   # Azul muy clarito (para los valores más bajos)
 ]
 
-# B. Paleta semántica fija para motivos de fin de caso.
-# Todas las funciones que grafican desenlaces deben leer exclusivamente de aquí.
+# B. Motivos de egreso (graficar_top_10_apilado)
+# Colores semánticos sobrios y profesionales.
 COLORES_MOTIVOS = {
-    "alta":               "#3A7D44",  # Verde esmeralda apagado
-    "alta-domiciliaria":  "#3A7D44",  # (igual que alta)
-    "muerte":             "#8B1A1A",  # Rojo ladrillo / borgoña
-    "alta hotel":         "#2E6E9E",  # Azul cobalto suave
-    "hospital externo":   "#C47A2B",  # Naranja tostado
-    "traslado-otro":      "#C47A2B",  # (igual que hospital externo)
-    "otro/desconocido":   "#7A7A7A",  # Gris plomo
+    "alta":              "#388E3C",  # Verde apagado
+    "alta-domiciliaria": "#388E3C",
+    "muerte":            "#D32F2F",  # Rojo oscuro/granate
+    "alta hotel":        "#0288D1",  # Azul cerúleo
+    "hospital externo":  "#F57C00",  # Naranja tostado
+    "traslado-otro":     "#F57C00",
+    "otro/desconocido":  "#9E9E9E",  # Gris neutro
 }
 
-# C. Colormaps secuenciales
-# Frecuencias absolutas / conteos (heatmaps de cantidad)
-CMAP_FRECUENCIA = "YlGnBu"
-# Probabilidades / porcentajes (heatmaps de transición normalizados)
-CMAP_PROBABILIDAD = "Purples"
+# C. Heatmaps de probabilidad 
+# Escala de Naranjas (ideal para porcentajes/probabilidades)
+CMAP_PROBABILIDAD = "Oranges"
 
-# D. Paleta para grillas de evolución temporal (una secuencia por período)
-PALETA_PERIODOS = ["#4878CF", "#D65F00", "#6A9E6F", "#8E72B0"]
+# D. Heatmaps de frecuencia/cantidades
+# Escala de Azules (ideal para volumen de pacientes absolutos)
+CMAP_FRECUENCIA = "Blues"
 
-
+# E. Paneles de períodos en grillas 2x2
+# Como los períodos son una línea de tiempo (Ola 1 a Ola 4), 
+# usamos un degradé que va de más claro (pasado) a más oscuro (presente).
+PALETA_PERIODOS = [
+    "#9ECAE1",  # Ola 1 (Claro)
+    "#6BAED6",  # Ola 2
+    "#2171B5",  # Ola 3
+    "#08306B"   # Ola 4 (Oscuro)
+]
 # ==========================================
 # ESTRUCTURA DE SUBCARPETAS OVERLEAF
 # ==========================================
