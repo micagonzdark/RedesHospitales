@@ -892,7 +892,7 @@ def plot_red_interactiva(G, hosp_coords):
     return m
 
 
-def graficar_heatmaps(df_probabilidades, df_cantidades):
+def graficar_heatmaps(df_probabilidades, df_cantidades, nombre_archivo=None):
     import matplotlib.pyplot as plt
     import seaborn as sns
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
@@ -911,9 +911,11 @@ def graficar_heatmaps(df_probabilidades, df_cantidades):
         plt.setp(ax.get_xticklabels(), rotation=45, ha='left', fontweight='bold')
         plt.setp(ax.get_yticklabels(), fontweight='bold')
     plt.tight_layout()
+    if nombre_archivo is not None:
+        plt.savefig(f'graficos_overleaf/{nombre_archivo}.pdf', bbox_inches='tight', dpi=300)
     plt.show()
 
-def graficar_top_10(df, x_col, y_col, titulo, xlabel, ylabel, sufijo="pac.", palette="viridis", subtitulo=None):
+def graficar_top_10(df, x_col, y_col, titulo, xlabel, ylabel, sufijo="pac.", palette="viridis", subtitulo=None, nombre_archivo=None):
     import matplotlib.pyplot as plt
     import seaborn as sns
     fig, ax = plt.subplots(figsize=(12, 7))
@@ -934,10 +936,12 @@ def graficar_top_10(df, x_col, y_col, titulo, xlabel, ylabel, sufijo="pac.", pal
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
     ax.tick_params(axis='y', labelsize=12)
+    if nombre_archivo is not None:
+        plt.savefig(f'graficos_overleaf/{nombre_archivo}.pdf', bbox_inches='tight', dpi=300)
     plt.show()
 
     
-def graficar_top_10_apilado(df_pivot, titulo, xlabel, ylabel, total_general, sufijo="pac."):
+def graficar_top_10_apilado(df_pivot, titulo, xlabel, ylabel, total_general, sufijo="pac.", nombre_archivo=None):
     """Grafica barras horizontales apiladas según el motivo de egreso."""
     fig, ax = plt.subplots(figsize=(12, 7))
     fig.patch.set_facecolor('white')
@@ -972,10 +976,11 @@ def graficar_top_10_apilado(df_pivot, titulo, xlabel, ylabel, total_general, suf
     # La leyenda ahora se apoya en ese nuevo borde invisible
     plt.legend(title='Motivo Fin de Caso', bbox_to_anchor=(1.02, 1), loc='upper left', frameon=False)
     plt.tight_layout()
-    
+    if nombre_archivo is not None:
+        plt.savefig(f'graficos_overleaf/{nombre_archivo}.pdf', bbox_inches='tight', dpi=300)
     plt.show()
     
-def graficar_grilla_periodos(pivot_periodos, orden_columnas):
+def graficar_grilla_periodos(pivot_periodos, orden_columnas, nombre_archivo=None):
     import matplotlib.pyplot as plt
     import seaborn as sns
     import numpy as np
@@ -1000,9 +1005,11 @@ def graficar_grilla_periodos(pivot_periodos, orden_columnas):
         sns.despine(ax=ax)
     plt.suptitle("Evolución del Top 10 Global de Traslados por Ola", fontsize=18, fontweight='bold', y=0.98)
     plt.tight_layout(rect=[0, 0, 1, 0.95])
+    if nombre_archivo is not None:
+        plt.savefig(f'graficos_overleaf/{nombre_archivo}.pdf', bbox_inches='tight', dpi=300)
     plt.show()
 
-def graficar_grilla_trayectorias_periodos(pivot_periodos, orden_columnas):
+def graficar_grilla_trayectorias_periodos(pivot_periodos, orden_columnas, nombre_archivo=None):
     import matplotlib.pyplot as plt
     import seaborn as sns
     import numpy as np
@@ -1027,9 +1034,11 @@ def graficar_grilla_trayectorias_periodos(pivot_periodos, orden_columnas):
         sns.despine(ax=ax)
     plt.suptitle("Evolución del Top 10 de Trayectorias Completas por Ola", fontsize=18, fontweight='bold', y=0.98)
     plt.tight_layout(rect=[0, 0, 1, 0.95])
+    if nombre_archivo is not None:
+        plt.savefig(f'graficos_overleaf/{nombre_archivo}.pdf', bbox_inches='tight', dpi=300)
     plt.show()
 
-def graficar_grilla_trayectorias_dinamico(df_cantidades, df_rankings, orden_columnas, n_top=8):
+def graficar_grilla_trayectorias_dinamico(df_cantidades, df_rankings, orden_columnas, n_top=8, nombre_archivo=None):
     import pandas as pd
     import matplotlib.pyplot as plt
     import seaborn as sns
@@ -1069,5 +1078,7 @@ def graficar_grilla_trayectorias_dinamico(df_cantidades, df_rankings, orden_colu
         sns.despine(ax=ax)
     plt.suptitle(f"Evolución Dinámica: Unión de las Top {n_top} Trayectorias por Ola", fontsize=18, fontweight='bold', y=0.98)
     plt.tight_layout(rect=[0, 0, 1, 0.95])
+    if nombre_archivo is not None:
+        plt.savefig(f'graficos_overleaf/{nombre_archivo}.pdf', bbox_inches='tight', dpi=300)
     plt.show()
 
