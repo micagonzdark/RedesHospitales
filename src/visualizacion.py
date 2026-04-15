@@ -955,7 +955,17 @@ def graficar_top_10_apilado(df_pivot, titulo, xlabel, ylabel, total_general, suf
     fig, ax = plt.subplots(figsize=(12, 7))
     fig.patch.set_facecolor('white')
 
-    colores_barras = [COLORES_MOTIVOS.get(col, '#333333') for col in df_pivot.columns]
+    # Estandarizar nombre de columnas para compatibilidad perfecta con COLORES_MOTIVOS
+    df_pivot.columns = df_pivot.columns.astype(str).str.lower().str.strip()
+    
+    # 1. Orden estandarizado segun directriz (lo que quede fuera se pega al final)
+    orden_apilado = ['alta', 'muerte', 'hospital externo', 'alta hotel', 'otro/desconocido']
+    columnas_presentes = [c for c in orden_apilado if c in df_pivot.columns]
+    columnas_extra = [c for c in df_pivot.columns if c not in orden_apilado]
+    df_pivot = df_pivot[columnas_presentes + columnas_extra]
+
+    # 2. Asignacion estricta de color
+    colores_barras = [COLORES_MOTIVOS.get(col, '#9E9E9E') for col in df_pivot.columns]
 
     df_pivot.plot(kind='barh', stacked=True, color=colores_barras, ax=ax, width=0.7)
 

@@ -2,6 +2,7 @@
 # CONFIGURACIONES Y CONSTANTES GLOBALES
 # ==========================================
 import os
+import shutil
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -119,8 +120,22 @@ RUTAS_OVERLEAF = {
 
 def crear_directorios_overleaf():
     """Crea todas las subcarpetas de exportación. Llamar una vez al inicio del notebook."""
+    base_dir = "graficos_overleaf"
+    if os.path.exists(base_dir):
+        shutil.rmtree(base_dir)
+        
     for ruta in RUTAS_OVERLEAF.values():
         os.makedirs(ruta, exist_ok=True)
+        
+    # Crear índice
+    indice_path = os.path.join(base_dir, "00_LEEME_INDICE.txt")
+    with open(indice_path, "w", encoding="utf-8") as f:
+        f.write("=== INDICE DE GRAFICOS OVERLEAF ===\n\n")
+        f.write("1_general/ : Matrices globales, heatmaps y distribuciones generales de traslados.\n")
+        f.write("2_desenlaces/ : Gráficos apilados y normalizados que muestran motivos de fin de caso (altas vs muertes).\n")
+        f.write("3_tiempos/ : Distribuciones de tiempos de internación y boxplots temporales.\n")
+        f.write("4_evolucion/ : Análisis de cómo variaron las métricas o estructuras a lo largo de los períodos de la pandemia.\n")
+        f.write("anexos/ : Gráficos de soporte adicionales.\n")
 
 
 def guardar_pdf(nombre_archivo: str, subcarpeta: str = "general"):
