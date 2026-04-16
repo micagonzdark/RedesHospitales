@@ -277,6 +277,12 @@ def analizar_red_hospitalaria(traslados, hosp_coords, fecha_inicio=None, fecha_f
     return G, edges, fig
 
 
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import ast
+
 def generar_matrices_traslados(traslados_df, pacientes_df, hospitales_df, fecha_inicio, fecha_fin,
                                tipo_matriz='probabilidad', nombre_archivo=None, subcarpeta="general"):
     df_meta = hospitales_df[['Nombre Hospital', 'municipioAbreviado', 'complejidad', 'color']].copy()
@@ -303,11 +309,13 @@ def generar_matrices_traslados(traslados_df, pacientes_df, hospitales_df, fecha_
     if tipo_matriz == 'probabilidad':
         matriz_dibujo = matriz_frecuencias.div(matriz_frecuencias.sum(axis=1), axis=0).fillna(0)
         fmt_matriz, label_colorbar, titulo_base = ".2f", 'Probabilidad de Transicion', "Matriz de Transicion (Probabilidades)"
-        cmap_matriz = CMAP_PROBABILIDAD
+        cmap_matriz = 'Reds' 
+        mostrar_cbar = True
     else:
         matriz_dibujo = matriz_frecuencias
         fmt_matriz, label_colorbar, titulo_base = "d", 'Cantidad de Traslados', "Matriz de Frecuencia (Cantidad de Traslados)"
-        cmap_matriz = CMAP_FRECUENCIA
+        cmap_matriz = 'Blues'
+        mostrar_cbar = False  
 
     fig = plt.figure(figsize=(16, 12))
     fig.patch.set_facecolor('white')
@@ -316,22 +324,38 @@ def generar_matrices_traslados(traslados_df, pacientes_df, hospitales_df, fecha_
     ax_matriz = plt.subplot(gs[0])
     ax_totales = plt.subplot(gs[1])
 
-    # Matriz principal: colormap segun tipo
+    # Matriz principal con square=True para evitar rectángulos
     sns.heatmap(matriz_dibujo, annot=True, cmap=cmap_matriz, fmt=fmt_matriz,
-                linewidths=0.5, linecolor='lightgray', cbar_kws={'label': label_colorbar}, ax=ax_matriz)
-    # Panel lateral de totales: siempre en CMAP_FRECUENCIA (son conteos)
+                linewidths=0.5, linecolor='lightgray', 
+                cbar=mostrar_cbar, cbar_kws={'label': label_colorbar} if mostrar_cbar else None, 
+                square=True,  # <-- NUEVO: Obliga a que cada celda sea un cuadrado perfecto
+                ax=ax_matriz)
+                
+    # Panel lateral de totales
     df_totales_plot = pd.DataFrame(
         {'Admisiones\nTotales': total_admisiones.values, 'Derivaciones\nHechas': total_derivaciones_hechas.values},
         index=orden_hospitales
     )
-    sns.heatmap(df_totales_plot, annot=True, cmap=CMAP_FRECUENCIA, fmt="d",
-                linewidths=0.5, linecolor='lightgray', cbar=False, ax=ax_totales)
+    sns.heatmap(df_totales_plot, annot=True, cmap='Blues', fmt="d",
+                linewidths=0.5, linecolor='lightgray', cbar=False, ax=ax_totales, square=True)
+
+    # Modificación dinámica de los textos (ceros a rayitas y tamaño de fuente)
+    if tipo_matriz != 'probabilidad':
+        for ax in [ax_matriz, ax_totales]:
+            for text in ax.texts:
+                if text.get_text() == '0':
+                    text.set_text('-')
+                    text.set_color('gray')
+                    text.set_fontsize(10)
+                else:
+                    text.set_fontsize(13)
+                    text.set_fontweight('bold')
 
     # Estetica ejes
     ax_matriz.xaxis.tick_top(); ax_matriz.xaxis.set_label_position('top')
-    ax_matriz.set_title(titulo_base, fontsize=18, fontweight='bold', pad=40)
-    ax_matriz.set_xlabel("Hospital de Destino", fontsize=12, fontweight='bold', labelpad=15)
-    ax_matriz.set_ylabel("Hospital de Origen", fontsize=12, fontweight='bold', labelpad=15)
+    # ax_matriz.set_title(titulo_base, fontsize=18, fontweight='bold', pad=40)
+    ax_matriz.set_xlabel("Hospital de Destino", fontsize=15, fontweight='bold', labelpad=15)
+    ax_matriz.set_ylabel("Hospital de Origen", fontsize=15, fontweight='bold', labelpad=15)
 
     ax_totales.xaxis.tick_top(); ax_totales.xaxis.set_label_position('top'); ax_totales.set_ylabel("")
 
@@ -341,10 +365,12 @@ def generar_matrices_traslados(traslados_df, pacientes_df, hospitales_df, fecha_
             hosp_name = tick_label.get_text()
             if ax == ax_matriz: tick_label.set_color(dict_colores.get(hosp_name, 'black'))
             tick_label.set_fontweight('bold'); tick_label.set_rotation(45); tick_label.set_ha('left')
+            tick_label.set_fontsize(12.5)
 
     for tick_label in ax_matriz.get_yticklabels():
         tick_label.set_color(dict_colores.get(tick_label.get_text(), 'black'))
         tick_label.set_fontweight('bold')
+        tick_label.set_fontsize(12.5)
 
     ax_totales.set_yticklabels([]); ax_totales.tick_params(axis='y', which='both', length=0)
 
@@ -354,9 +380,10 @@ def generar_matrices_traslados(traslados_df, pacientes_df, hospitales_df, fecha_
         ax_matriz.axvline(c, color='#333333', lw=2, linestyle='--')
 
     plt.tight_layout()
-    plt.figtext(0.99, 0.01, f"Periodo: {fecha_inicio} al {fecha_fin}",
-                horizontalalignment='right', verticalalignment='bottom',
-                fontsize=10, color='gray', style='italic')
-    if nombre_archivo:
-        guardar_pdf(nombre_archivo, subcarpeta=subcarpeta)
+    # plt.figtext(0.99, 0.01, f"Periodo: {fecha_inicio} al {fecha_fin}",
+    #             horizontalalignment='right', verticalalignment='bottom',
+    #             fontsize=10, color='gray', style='italic')
+                
+    # if nombre_archivo:
+    #     guardar_pdf(nombre_archivo, subcarpeta=subcarpeta)
     plt.show()

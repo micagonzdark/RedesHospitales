@@ -108,7 +108,7 @@ def generar_leyendas(ax, v_max_raw, i_min_raw, i_max_raw, max_traslados, max_ing
     
     # REDONDEO OBLIGATORIO para que la leyenda siempre sea limpia
     v_max_g = redondear_estetico(v_max_raw)
-    v_min_g = 5
+    v_min_g = UMBRAL_MIN_TRASLADOS_GRAFICO
     v_med_g = redondear_estetico(v_max_g / 2)
     
     i_max_g = redondear_estetico(i_max_raw)
@@ -128,7 +128,7 @@ def generar_leyendas(ax, v_max_raw, i_min_raw, i_max_raw, max_traslados, max_ing
     # === CORRECCIÓN EN generar_leyendas ===
 
     # 1. Definimos los valores que queremos mostrar en la leyenda
-    v_min_leg = 5 
+    v_min_leg = UMBRAL_MIN_TRASLADOS_GRAFICO 
     v_med_leg = 75
     v_max_leg = v_max_g
 

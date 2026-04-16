@@ -27,8 +27,9 @@ MAPA_FORMAS = {'dot': 'o', 'star': '*'}
 MAPA_ESTADOS = {'criticas': 3, 'intermedias': 2, 'generales': 1}
 COLORES_ORIGEN = {'Desde MÓDULO': '#d73027', 'Desde UPA': '#fdae61', 'Desde HOSPITAL': '#1a9850'}
 
-MIN_GROSOR_ARISTA = 0.5
-MAX_GROSOR_ARISTA = 15.0
+# Umbrales para filtrado de aristas (traslados)
+UMBRAL_MIN_TRASLADOS_GRAFICO = 4      # Mínimo de traslados para dibujar la arista en grafos y mapas
+UMBRAL_MIN_TRASLADOS_DESCRIPCION = 0  # Mínimo de traslados para incluir en estadísticas y tablas resumen (ajustable)
 
 PAREJAS_MISMO_PREDIO = [
     {'UPA 17 - QU', 'Módulo Hospitalario 10 - QU'},
