@@ -819,7 +819,7 @@ def graficar_top_10(df, x_col, y_col, titulo, xlabel, ylabel, sufijo="pac.", pal
         palette = PALETA_GENERAL[:len(df)]
     fig, ax = plt.subplots(figsize=(12, 7))
     fig.patch.set_facecolor('white')
-    sns.barplot(data=df, x=x_col, y=y_col, palette=palette, ax=ax)
+    sns.barplot(data=df, x=x_col, y=y_col, palette=palette, hue=y_col, legend=False, ax=ax)
     margen = df[x_col].max() * 0.015
     for index, row in df.iterrows():
         texto_etiqueta = f"{int(row[x_col])} {sufijo} ({row['Porcentaje']:.1f}%)"

@@ -16,6 +16,21 @@ RUTA_BARRIOS_POPULARES = os.path.abspath(os.path.join(os.path.dirname(__file__),
 
 sns.set_style("whitegrid")
 
+# ==========================================
+# CONFIGURACIÓN GLOBAL DE TIPOGRAFÍA
+# ==========================================
+# Aplicamos una tipografía limpia y profesional a nivel global para todos los gráficos del proyecto
+plt.rcParams.update({
+    'font.family': 'sans-serif',
+    'font.sans-serif': ['Roboto', 'Helvetica Neue', 'Helvetica', 'Arial', 'Liberation Sans', 'DejaVu Sans', 'sans-serif'],
+    'axes.unicode_minus': False, # Para evitar problemas con el signo menos en algunas fuentes
+    'axes.titleweight': 'bold',
+    'axes.labelweight': 'normal',
+    'figure.titlesize': 14,
+    'figure.titleweight': 'bold'
+})
+
+
 PERIODOS = [
     ('Primera Ola', '2020-06-01', '2020-10-31'),
     ('Intermedia', '2020-11-01', '2021-02-28'),

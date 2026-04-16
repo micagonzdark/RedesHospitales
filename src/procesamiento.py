@@ -122,8 +122,16 @@ def generar_tabla_resumen(pacientes_df, traslados_df, periodos, hospitales_conoc
         df_t_bruto = traslados_df[traslados_df['fecha_egreso'].between(inicio, fin)]
         mask_validos = (df_t_bruto['hospital_ingreso'].isin(hospitales_conocidos)) & (df_t_bruto['hospital_destino'].isin(hospitales_conocidos)) & (df_t_bruto['hospital_ingreso'] != df_t_bruto['hospital_destino'])
         
-        # Para el análisis descriptivo de la tabla, contamos TODOS los traslados válidos
+        # Para el análisis descriptivo de la tabla, contamos los traslados que superen el umbral de descripción
+        # (Usualmente 0 para incluir todo el dataset válido)
         df_t_periodo = df_t_bruto[mask_validos].copy()
+        
+        # Opcionalmente: Si deseamos filtrar por peso mínimo en la descripción (según config)
+        # Aunque para la tabla resumen solemos querer el 100% de la actividad válida.
+        if UMBRAL_MIN_TRASLADOS_DESCRIPCION > 0:
+            # Aquí tendríamos que agrupar para ver el peso de la ruta si el umbral se refiere a rutas
+            # Pero la tabla resumen suele ser conteo de eventos individuales.
+            pass
         
         total_transfers = len(df_t_periodo)
         df_amb_periodo = df_t_periodo[df_t_periodo['es_ambulancia']]

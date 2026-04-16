@@ -236,7 +236,7 @@ def tiempo_total_paciente(df, col_id="Id", col_dias="Duracion dias", max_dias=50
     return tiempo_sistema, limite
 
 def analizar_red_hospitalaria(traslados, hosp_coords, fecha_inicio=None, fecha_fin=None, filtrar_motivo=None,
-                              hospital_origen=None, hospital_destino=None, peso_minimo=1, modo="estatico",
+                              hospital_origen=None, hospital_destino=None, peso_minimo=UMBRAL_MIN_TRASLADOS_GRAFICO, modo="estatico",
                               mostrar_resumen=True, graficar=True, mostrar_nombres=True, mostrar_peso=True):
     """
     Construye la red de traslados entre hospitales a partir de un DataFrame
@@ -319,7 +319,13 @@ def generar_matrices_traslados(traslados_df, pacientes_df, hospitales_df, fecha_
 
     fig = plt.figure(figsize=(16, 12))
     fig.patch.set_facecolor('white')
-    gs = gridspec.GridSpec(1, 2, width_ratios=[12, 1.2], wspace=0.01)
+
+    # NUEVO: Calculamos la proporción exacta en base a las columnas
+    columnas_matriz = len(orden_hospitales)
+    columnas_totales = 2 # 'Admisiones Totales' y 'Derivaciones Hechas'
+    
+    # Configuramos el ancho para que respete esa proporción exacta
+    gs = gridspec.GridSpec(1, 2, width_ratios=[columnas_matriz, columnas_totales], wspace=0.05)
 
     ax_matriz = plt.subplot(gs[0])
     ax_totales = plt.subplot(gs[1])
@@ -332,12 +338,17 @@ def generar_matrices_traslados(traslados_df, pacientes_df, hospitales_df, fecha_
                 ax=ax_matriz)
                 
     # Panel lateral de totales
+    # Panel lateral de totales
     df_totales_plot = pd.DataFrame(
         {'Admisiones\nTotales': total_admisiones.values, 'Derivaciones\nHechas': total_derivaciones_hechas.values},
         index=orden_hospitales
     )
+    
+    # Agregamos square=True aquí también
     sns.heatmap(df_totales_plot, annot=True, cmap='Blues', fmt="d",
-                linewidths=0.5, linecolor='lightgray', cbar=False, ax=ax_totales, square=True)
+                linewidths=0.5, linecolor='lightgray', cbar=False, 
+                square=True,  # <-- NUEVO: Obliga a ser cuadrados
+                ax=ax_totales)
 
     # Modificación dinámica de los textos (ceros a rayitas y tamaño de fuente)
     if tipo_matriz != 'probabilidad':
@@ -384,6 +395,6 @@ def generar_matrices_traslados(traslados_df, pacientes_df, hospitales_df, fecha_
     #             horizontalalignment='right', verticalalignment='bottom',
     #             fontsize=10, color='gray', style='italic')
                 
-    # if nombre_archivo:
-    #     guardar_pdf(nombre_archivo, subcarpeta=subcarpeta)
+    if nombre_archivo:
+        guardar_pdf(nombre_archivo, subcarpeta=subcarpeta)
     plt.show()
