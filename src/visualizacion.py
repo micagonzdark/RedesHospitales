@@ -79,7 +79,11 @@ def dibujar_grafo_nx(ax, G, posiciones, max_traslados, max_ingresos, cfg):
                 l.set_zorder(3)
 
     # 3. DIBUJAR ETIQUETAS
-    labels = {k: k.replace('Módulo Hospitalario', 'MÓDULO').replace('Modulo Hospitalario', 'MÓDULO') for k in lista_nodos}
+    # Las claves k son IDs (H01, H02...), obtenemos el nombre desde los atributos del nodo
+    labels = {
+        k: str(G.nodes[k].get('label', k)).replace('Módulo Hospitalario', 'MÓDULO').replace('Modulo Hospitalario', 'MÓDULO') 
+        for k in lista_nodos
+    }
     pos_labels = {k: (v[0], v[1] + cfg.get('lbl_offset', 0.005)) for k, v in posiciones.items()} 
     
     bbox_cfg = dict(
@@ -435,14 +439,15 @@ def graficar_estado_paciente(df, col_id="Id"):
         display(fig)
 
 def sankey_pacientes(df):
-    df_pairs = df[df["Hospital siguiente"].notna()][["Nombre Hospital", "Hospital siguiente"]]
-    df_pairs = df_pairs.groupby(["Nombre Hospital", "Hospital siguiente"]).size().reset_index(name="count")
+    df_pairs = df[df["id_hospital_destino"].notna()][["id_hospital", "id_hospital_destino", "Nombre Hospital", "Nombre Hospital siguiente"]]
+    df_pairs = df_pairs.groupby(["id_hospital", "id_hospital_destino", "Nombre Hospital", "Nombre Hospital siguiente"]).size().reset_index(name="count")
     
-    labels = list(pd.concat([df_pairs["Nombre Hospital"], df_pairs["Hospital siguiente"]]).unique())
+    # Usar nombres para los labels de los nodos del Sankey
+    labels = list(pd.concat([df_pairs["Nombre Hospital"], df_pairs["Nombre Hospital siguiente"]]).unique())
     label_map = {label:i for i,label in enumerate(labels)}
     
     source = df_pairs["Nombre Hospital"].map(label_map)
-    target = df_pairs["Hospital siguiente"].map(label_map)
+    target = df_pairs["Nombre Hospital siguiente"].map(label_map)
     value = df_pairs["count"]
     
     fig = go.Figure(data=[go.Sankey(
@@ -453,7 +458,7 @@ def sankey_pacientes(df):
     fig.show()
 
 def top_flujos_hospitales(traslados, top_n=10, graficar=True, figsize=(10,5)):
-    flujos = traslados.groupby(["Nombre Hospital","Hospital siguiente"]).size().reset_index(name="cantidad").sort_values("cantidad", ascending=False)
+    flujos = traslados.groupby(["id_hospital", "id_hospital_destino", "Nombre Hospital","Nombre Hospital siguiente"]).size().reset_index(name="cantidad").sort_values("cantidad", ascending=False)
     top = flujos.head(top_n)
     if graficar:
         labels = top["Nombre Hospital"] + " → " + top["Hospital siguiente"]
@@ -565,7 +570,7 @@ def plot_edges_geo(G, hosp_coords, mostrar_nombres=True, mostrar_peso=True):
 
     gdf_nodes.plot(ax=ax, color="red", markersize=50, zorder=2)
 
-    geom_dict = {row["Nombre Hospital"]: row.geometry for _, row in gdf_nodes.iterrows()}
+    geom_dict = {row["id_hospital"]: row.geometry for _, row in gdf_nodes.iterrows()}
     edges, _ = construir_gdf_edges(G, geom_dict, 0.15)
 
     weights = [e["weight"] for e in edges]
@@ -606,7 +611,7 @@ def plot_red_con_mapa(G, hosp_coords, mostrar_nombres=True, mostrar_peso=True):
         crs="EPSG:4326"
     ).to_crs(epsg=3857)
 
-    geom_dict = dict(zip(gdf_nodes["Nombre Hospital"], gdf_nodes.geometry))
+    geom_dict = dict(zip(gdf_nodes["id_hospital"], gdf_nodes.geometry))
     edges, _ = construir_gdf_edges(G, geom_dict, 100)  # 👈 más chico
 
     weights = [e["weight"] for e in edges]
@@ -732,7 +737,7 @@ def plot_red_interactiva(G, hosp_coords):
     G = colapsar_grafo(G)
 
     coord_dict = {
-        row["Nombre Hospital"]: (row["Latitud"], row["Longitud"])
+        row["id_hospital"]: (row["Latitud"], row["Longitud"])
         for _, row in hosp_coords.iterrows()
     }
 

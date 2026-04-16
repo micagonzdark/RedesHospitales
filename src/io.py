@@ -21,15 +21,24 @@ def _configurar_visualizacion():
     sns.set_style("whitegrid")
     plt.rcParams["figure.figsize"] = (10, 6)
 
-def _cargar_datos(data_path, verbose=True):
-    """Carga y limpia el dataset de pacientes y reconstruye los traslados."""
+def _cargar_datos(data_path, hosp_coords, verbose=True, drop_missing=False):
+    """Carga y limpia el dataset de pacientes y reconstruye los traslados usando IDs."""
     if verbose:
         print("Cargando datos de pacientes...")
-    df_pacientes = cargar_datos_pacientes(os.path.join(data_path, "pacientes.xlsx"))
-    traslados    = reconstruir_traslados(df_pacientes)
+    
+    # Carga cruda del Excel
+    df_raw = pd.read_excel(os.path.join(data_path, "pacientes.xlsx"))
+    
+    # Pipeline: Limpieza -> Mapeo IDs (aquí lanza error si falta alguno, salvo que drop_missing=True)
+    from src.procesamiento import mapear_ids_hospitales
+    df_pacientes = limpiar_pacientes(df_raw)
+    df_pacientes = mapear_ids_hospitales(df_pacientes, hosp_coords, drop_missing=drop_missing)
+    
+    traslados = reconstruir_traslados(df_pacientes)
+    
     if verbose:
-        print(f"  → {len(df_pacientes):,} registros | {df_pacientes['Id'].nunique():,} pacientes únicos")
-        print(f"  → {len(traslados):,} traslados reconstruidos")
+        print(f"  -> {len(df_pacientes):,} registros | {df_pacientes['Id'].nunique():,} pacientes únicos")
+        print(f"  -> {len(traslados):,} traslados reconstruidos")
     return df_pacientes, traslados
 
 def _cargar_geografia(data_path, verbose=True):
@@ -56,12 +65,12 @@ def _cargar_geografia(data_path, verbose=True):
     ]
 
     if verbose:
-        print(f"  → {len(hosp_coords)} hospitales con coordenadas")
-        print(f"  → {len(municipios_amba)} municipios AMBA cargados")
+        print(f"  -> {len(hosp_coords)} hospitales con coordenadas")
+        print(f"  -> {len(municipios_amba)} municipios AMBA cargados")
 
     return hosp_coords, municipios, municipios_amba
 
-def init_notebook(data_path="../data", verbose=True):
+def init_notebook(data_path="../data", verbose=True, drop_missing=False):
     """
     Inicializa el entorno completo de análisis.
 
@@ -71,6 +80,8 @@ def init_notebook(data_path="../data", verbose=True):
         Ruta a la carpeta de datos (relativa al notebook).
     verbose : bool
         Si True, imprime resumen de carga.
+    drop_missing : bool
+        Si True, filtra hospitales que no están en el maestro de coordenadas.
 
     Retorna
     -------
@@ -78,11 +89,13 @@ def init_notebook(data_path="../data", verbose=True):
         df_pacientes, traslados, hosp_coords, municipios, municipios_amba
     """
     _setup_paths()
-
     _configurar_visualizacion()
 
-    df_pacientes, traslados = _cargar_datos(data_path, verbose)
+    # Primero cargamos geografía porque necesitamos los IDs para los pacientes
     hosp_coords, municipios, municipios_amba = _cargar_geografia(data_path, verbose)
+    
+    # Ahora cargamos pacientes pasando hosp_coords para validación de IDs
+    df_pacientes, traslados = _cargar_datos(data_path, hosp_coords, verbose, drop_missing=drop_missing)
 
     if verbose:
         print("\n✓ Entorno listo.\n")

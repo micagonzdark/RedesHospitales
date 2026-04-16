@@ -32,6 +32,7 @@ plt.rcParams.update({
 
 
 PERIODOS = [
+    # ('Global', '2020-06-01', '2022-12-31'),
     ('Primera Ola', '2020-06-01', '2020-10-31'),
     ('Intermedia', '2020-11-01', '2021-02-28'),
     ('Segunda Ola', '2021-03-01', '2021-07-31'),
@@ -47,9 +48,9 @@ UMBRAL_MIN_TRASLADOS_GRAFICO = 4      # Mínimo de traslados para dibujar la ari
 UMBRAL_MIN_TRASLADOS_DESCRIPCION = 0  # Mínimo de traslados para incluir en estadísticas y tablas resumen (ajustable)
 
 PAREJAS_MISMO_PREDIO = [
-    {'UPA 17 - QU', 'Módulo Hospitalario 10 - QU'},
-    {'UPA 11 - FV', 'Módulo Hospitalario 11 - FV'},
-    {'UPA 5 - AB', 'Módulo Hospitalario 9 - AB'}
+    {'H01', 'H10'}, # UPA 17 - QU / Módulo 10
+    {'H09', 'H11'}, # UPA 11 - FV / Módulo 11
+    {'H08', 'H13'}  # UPA 5 - AB / Módulo 9
 ]
 
 cfg_grilla = {

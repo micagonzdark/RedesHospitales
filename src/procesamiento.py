@@ -54,13 +54,14 @@ def armar_trayectoria(group, dict_complejidad=None):
     if dict_complejidad is None:
         dict_complejidad = {}
         
-    ruta_hosp = group['hospital_ingreso'].tolist() + [group['hospital_destino'].iloc[-1]]
+    ruta_hosp_id = group['id_hospital'].tolist() + [group['id_hospital_destino'].iloc[-1]]
+    ruta_hosp_txt = group['Nombre Hospital'].tolist() + [group['Nombre Hospital siguiente'].iloc[-1]]
     ruta_tipo = group['tipo_ingreso'].tolist() + [group['tipo_destino'].iloc[-1]]
     
-    ruta_comp_num = [dict_complejidad.get(h, 0) for h in ruta_hosp] 
+    ruta_comp_num = [dict_complejidad.get(h, 0) for h in ruta_hosp_id] 
     ruta_tipo_num = [MAPA_ESTADOS.get(str(e).lower().strip(), 0) for e in ruta_tipo]
 
-    str_hosp = " -> ".join(ruta_hosp)
+    str_hosp = " -> ".join(ruta_hosp_txt)
     str_tipo = " -> ".join([str(e) for e in ruta_tipo])
     str_comp = " -> ".join([str(c) for c in ruta_comp_num])
     str_tipo_num = " -> ".join([str(e) for e in ruta_tipo_num])
@@ -78,12 +79,14 @@ def armar_trayectoria(group, dict_complejidad=None):
         'ruta_tipos_num_str': str_tipo_num,
         'ruta_complejidad_str': str_comp,
         
-        'ruta_hospitales_array': ruta_hosp,
+        'ruta_hospitales_array': ruta_hosp_id,
+        'ruta_hospitales_txt_array': ruta_hosp_txt,
         'ruta_tipos_array': ruta_tipo,
         'ruta_tipos_num_array': ruta_tipo_num,
         'ruta_complejidad_array': ruta_comp_num,
         
-        'hospital_final': ruta_hosp[-1],
+        'hospital_final_id': ruta_hosp_id[-1],
+        'hospital_final_txt': ruta_hosp_txt[-1],
         'tipo_final_txt': ruta_tipo[-1], 
         'tipo_final_num': ruta_tipo_num[-1],
         'complejidad_final': ruta_comp_num[-1],
@@ -229,13 +232,57 @@ def limpiar_pacientes(df):
     if "Nombre Hospital" in df_clean.columns:
         df_clean["Nombre Hospital"] = df_clean["Nombre Hospital"].apply(limpiar_nombre)
 
-    # convertir fechas
+    # Parseo de fechas (crucial para reconstruir_traslados)
     date_cols = ["Fecha inicio", "Fecha egreso", "Última actualización"]
     for c in date_cols:
         if c in df_clean.columns:
             df_clean[c] = pd.to_datetime(df_clean[c], errors="coerce")
 
-    # duración de internación
+    return df_clean
+
+def mapear_ids_hospitales(df, hosp_coords, drop_missing=False):
+    """
+    Agrega la columna 'id_hospital' a partir del maestro de coordenadas.
+    Si drop_missing=True, elimina los registros de hospitales no encontrados y emite un aviso.
+    Si drop_missing=False, lanza error si algún hospital no existe en el maestro.
+    """
+    # 1. Asegurar que la columna objetivo existe
+    if "Nombre Hospital" not in df.columns:
+        raise ValueError("El DataFrame debe contener una columna 'Nombre Hospital' para realizar el mapeo.")
+
+    # 2. Limpiar nombres en el DataFrame de entrada ANTES de validar
+    df["Nombre Hospital"] = df["Nombre Hospital"].apply(limpiar_nombre)
+
+    # 3. Crear el mapeo limpieza -> ID
+    mapping = dict(zip(hosp_coords["Nombre Hospital"].apply(limpiar_nombre), hosp_coords["id_hospital"]))
+    
+    # 4. Verificar hospitales faltantes
+    nombres_pacientes = set(df["Nombre Hospital"].dropna().unique())
+    nombres_maestros = set(mapping.keys())
+    faltantes = nombres_pacientes - nombres_maestros
+    
+    if faltantes:
+        if not drop_missing:
+            msg = f"\n[ERROR CRÍTICO] Se encontraron hospitales en el dataset de pacientes que NO están en hospitales_coordenadas.csv:\n"
+            for f in faltantes:
+                msg += f"  - '{f}'\n"
+            msg += "\nPor favor, agrégalos al archivo CSV o corrige los nombres antes de continuar."
+            raise ValueError(msg)
+        else:
+            # Reportar y filtrar
+            mask_faltantes = df["Nombre Hospital"].isin(faltantes)
+            cantidad_eliminada = mask_faltantes.sum()
+            print(f"\n[AVISO] Ignorando {len(faltantes)} hospitales no registrados:")
+            for f in faltantes:
+                registros_h = len(df[df["Nombre Hospital"] == f])
+                print(f"  - '{f}' ({registros_h} registros)")
+            
+            df = df[~mask_faltantes].copy()
+            print(f"Total de registros eliminados: {cantidad_eliminada}")
+        
+    # 5. Mapear
+    df["id_hospital"] = df["Nombre Hospital"].map(mapping)
+    return df
     if "Fecha inicio" in df_clean.columns and "Fecha egreso" in df_clean.columns:
         df_clean["Duracion días"] = (df_clean["Fecha egreso"] - df_clean["Fecha inicio"]).dt.days
 
@@ -362,7 +409,8 @@ def reconstruir_traslados(df, max_horas_interno=24, filtrar_errores=True):
     df = df.sort_values(["Id", "Fecha inicio"]).copy()
 
     # hospital y fecha del siguiente registro del mismo paciente
-    df["Hospital siguiente"] = df.groupby("Id")["Nombre Hospital"].shift(-1)
+    df["id_hospital_destino"] = df.groupby("Id")["id_hospital"].shift(-1)
+    df["Nombre Hospital siguiente"] = df.groupby("Id")["Nombre Hospital"].shift(-1)
     df["Fecha ingreso siguiente"] = df.groupby("Id")["Fecha inicio"].shift(-1)
 
     # días entre egreso del hospital actual e ingreso al siguiente
@@ -377,8 +425,8 @@ def reconstruir_traslados(df, max_horas_interno=24, filtrar_errores=True):
     # filtrar traslados válidos: marcados como traslado, con destino distinto al origen
     traslados = df[
         (df["es_traslado"]) &
-        (df["Hospital siguiente"].notna()) &
-        (df["Hospital siguiente"] != df["Nombre Hospital"])
+        (df["id_hospital_destino"].notna()) &
+        (df["id_hospital_destino"] != df["id_hospital"])
     ].copy()
 
     # detectar errores de fechas
@@ -448,7 +496,7 @@ def identificar_episodios(df, col_id="Id", col_fecha="Fecha inicio", col_motivo=
 def historial_paciente(df, paciente_id):
     df_p = df[df["Id"] == paciente_id].sort_values("Fecha inicio")
     return df_p[[
-        "Nombre Hospital","Fecha inicio","Fecha egreso",
+        "id_hospital", "Nombre Hospital","Fecha inicio","Fecha egreso",
         "Estado al ingreso","Tipo al ingreso","Motivo","Duracion días"
     ]]
 
@@ -463,6 +511,7 @@ def historia_clinica(df, paciente_id):
     }
     for _, row in df_p.iterrows():
         historia["eventos"].append({
+            "id_hospital": row["id_hospital"],
             "hospital": row["Nombre Hospital"],
             "fecha_inicio": row["Fecha inicio"],
             "fecha_egreso": row["Fecha egreso"],
@@ -536,7 +585,7 @@ def metricas_red(G, top_n=10):
     return df_metricas
 
 def gdf_red_hospitalaria(G, hosp_coords):
-    geom_dict = {row["Nombre Hospital"]: (row["Longitud"], row["Latitud"])
+    geom_dict = {row["id_hospital"]: (row["Longitud"], row["Latitud"])
                  for _, row in hosp_coords.iterrows()}
     edges_list = []
     missing_nodes = set()

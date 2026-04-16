@@ -285,26 +285,34 @@ import ast
 
 def generar_matrices_traslados(traslados_df, pacientes_df, hospitales_df, fecha_inicio, fecha_fin,
                                tipo_matriz='probabilidad', nombre_archivo=None, subcarpeta="general"):
-    df_meta = hospitales_df[['Nombre Hospital', 'municipioAbreviado', 'complejidad', 'color']].copy()
+    df_meta = hospitales_df[['id_hospital', 'Nombre Hospital', 'municipioAbreviado', 'complejidad', 'color']].copy()
     df_meta['color'] = df_meta['color'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
-    df_meta_red = df_meta[df_meta['Nombre Hospital'].isin(set(hospitales_df['Nombre Hospital']))].sort_values(['municipioAbreviado', 'complejidad'])
+    df_meta_red = df_meta[df_meta['id_hospital'].isin(set(hospitales_df['id_hospital']))].sort_values(['municipioAbreviado', 'complejidad'])
 
-    orden_hospitales = df_meta_red['Nombre Hospital'].tolist()
+    orden_ids = df_meta_red['id_hospital'].tolist()
+    nombres_hospitales = df_meta_red['Nombre Hospital'].tolist()
     municipios_ordenados = df_meta_red['municipioAbreviado'].tolist()
 
     mask_tras = (traslados_df['fecha_egreso'].between(fecha_inicio, fecha_fin))
     df_t_periodo = traslados_df[mask_tras].copy()
-    mask_validos = (df_t_periodo['hospital_ingreso'].isin(orden_hospitales)) & (df_t_periodo['hospital_destino'].isin(orden_hospitales)) & (df_t_periodo['hospital_ingreso'] != df_t_periodo['hospital_destino'])
+    
+    # Usar IDs para la lógica de la matriz
+    mask_validos = (df_t_periodo['id_hospital'].isin(orden_ids)) & (df_t_periodo['id_hospital_destino'].isin(orden_ids)) & (df_t_periodo['id_hospital'] != df_t_periodo['id_hospital_destino'])
     df_t_limpio = df_t_periodo[mask_validos].copy()
 
     df_p_periodo = pacientes_df[pacientes_df['fecha_ingreso'].between(fecha_inicio, fecha_fin)]
 
-    # Totales
-    total_admisiones = df_p_periodo.groupby('hospital_origen').size().reindex(orden_hospitales, fill_value=0)
-    total_derivaciones_hechas = df_t_limpio.groupby('hospital_ingreso').size().reindex(orden_hospitales, fill_value=0)
+    # Totales (usando IDs para indexar)
+    total_admisiones = df_p_periodo.groupby('id_hospital').size().reindex(orden_ids, fill_value=0)
+    total_derivaciones_hechas = df_t_limpio.groupby('id_hospital').size().reindex(orden_ids, fill_value=0)
 
-    # Matriz
-    matriz_frecuencias = pd.crosstab(df_t_limpio['hospital_ingreso'], df_t_limpio['hospital_destino']).reindex(index=orden_hospitales, columns=orden_hospitales, fill_value=0)
+    # Matriz (usando IDs como índices y columnas)
+    matriz_frecuencias = pd.crosstab(df_t_limpio['id_hospital'], df_t_limpio['id_hospital_destino']).reindex(index=orden_ids, columns=orden_ids, fill_value=0)
+    
+    # Para el gráfico, renombramos los índices/columnas de la matriz de IDs a Nombres
+    id_to_name = dict(zip(orden_ids, nombres_hospitales))
+    matriz_frecuencias.index = [id_to_name[i] for i in matriz_frecuencias.index]
+    matriz_frecuencias.columns = [id_to_name[i] for i in matriz_frecuencias.columns]
 
     if tipo_matriz == 'probabilidad':
         matriz_dibujo = matriz_frecuencias.div(matriz_frecuencias.sum(axis=1), axis=0).fillna(0)
@@ -321,7 +329,7 @@ def generar_matrices_traslados(traslados_df, pacientes_df, hospitales_df, fecha_
     fig.patch.set_facecolor('white')
 
     # NUEVO: Calculamos la proporción exacta en base a las columnas
-    columnas_matriz = len(orden_hospitales)
+    columnas_matriz = len(nombres_hospitales)
     columnas_totales = 2 # 'Admisiones Totales' y 'Derivaciones Hechas'
     
     # Configuramos el ancho para que respete esa proporción exacta
@@ -340,8 +348,8 @@ def generar_matrices_traslados(traslados_df, pacientes_df, hospitales_df, fecha_
     # Panel lateral de totales
     # Panel lateral de totales
     df_totales_plot = pd.DataFrame(
-        {'Admisiones\nTotales': total_admisiones.values, 'Derivaciones\nHechas': total_derivaciones_hechas.values},
-        index=orden_hospitales
+        {'Admisiones': total_admisiones.values, 'Derivaciones': total_derivaciones_hechas.values},
+        index=nombres_hospitales
     )
     
     # Agregamos square=True aquí también
@@ -365,8 +373,8 @@ def generar_matrices_traslados(traslados_df, pacientes_df, hospitales_df, fecha_
     # Estetica ejes
     ax_matriz.xaxis.tick_top(); ax_matriz.xaxis.set_label_position('top')
     # ax_matriz.set_title(titulo_base, fontsize=18, fontweight='bold', pad=40)
-    ax_matriz.set_xlabel("Hospital de Destino", fontsize=15, fontweight='bold', labelpad=15)
-    ax_matriz.set_ylabel("Hospital de Origen", fontsize=15, fontweight='bold', labelpad=15)
+    ax_matriz.set_xlabel("Hospital de Destino", fontsize=18, fontweight='bold', labelpad=15)
+    ax_matriz.set_ylabel("Hospital de Origen", fontsize=18, fontweight='bold', labelpad=15)
 
     ax_totales.xaxis.tick_top(); ax_totales.xaxis.set_label_position('top'); ax_totales.set_ylabel("")
 
@@ -376,12 +384,12 @@ def generar_matrices_traslados(traslados_df, pacientes_df, hospitales_df, fecha_
             hosp_name = tick_label.get_text()
             if ax == ax_matriz: tick_label.set_color(dict_colores.get(hosp_name, 'black'))
             tick_label.set_fontweight('bold'); tick_label.set_rotation(45); tick_label.set_ha('left')
-            tick_label.set_fontsize(12.5)
+            tick_label.set_fontsize(13)
 
     for tick_label in ax_matriz.get_yticklabels():
         tick_label.set_color(dict_colores.get(tick_label.get_text(), 'black'))
         tick_label.set_fontweight('bold')
-        tick_label.set_fontsize(12.5)
+        tick_label.set_fontsize(13)
 
     ax_totales.set_yticklabels([]); ax_totales.tick_params(axis='y', which='both', length=0)
 
