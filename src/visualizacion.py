@@ -875,8 +875,210 @@ def graficar_top_10(df, x_col, y_col, titulo, xlabel, ylabel, sufijo="pac.", pal
         guardar_pdf(nombre_archivo, subcarpeta=subcarpeta)
     plt.show()
 
-    
 def graficar_top_10_apilado(df_pivot, titulo, xlabel, ylabel, total_general, sufijo="pac.", nombre_archivo=None, subcarpeta="desenlaces"):
+    import matplotlib.pyplot as plt
+    
+    fig, ax = plt.subplots(figsize=(12, 7))
+    fig.patch.set_facecolor('white')
+
+    # Paleta desaturada intacta
+    config_motivos = {
+    'alta':             {'nombre': 'alta',             'color': '#3B7A57'}, 
+    'muerte':           {'nombre': 'muerte',           'color': '#4D5359'}, 
+    'hospital externo': {'nombre': 'traslado externo', 'color': '#C85A17'}, 
+    'alta hotel':       {'nombre': 'alta hotel',       'color': '#4682B4'}  
+    }
+
+    # Paleta de colores para los motivos EXTRA
+    paleta_extras = [
+        '#42a5f5', '#ab47bc', '#26a69a', '#ffca28', '#ec407a', '#8d6e63', '#78909c' 
+    ]
+
+    df_pivot.columns = df_pivot.columns.astype(str).str.lower().str.strip()
+    
+    columnas_principales = []
+    colores_barras = []
+    
+    # 2. Procesar los motivos PRINCIPALES
+    for col_original, config in config_motivos.items():
+        if col_original in df_pivot.columns:
+            df_pivot = df_pivot.rename(columns={col_original: config['nombre']})
+        else:
+            df_pivot[config['nombre']] = 0 
+            
+        columnas_principales.append(config['nombre'])
+        colores_barras.append(config['color'])
+
+    # 3. Identificar y procesar los motivos EXTRA
+    columnas_extra = [col for col in df_pivot.columns if col not in columnas_principales]
+    
+    for i, col in enumerate(columnas_extra):
+        color_dinamico = paleta_extras[i % len(paleta_extras)]
+        colores_barras.append(color_dinamico)
+
+    # 4. Reordenar el DataFrame: Primero los principales, al final los extra
+    orden_final = columnas_principales + columnas_extra
+    df_pivot = df_pivot[orden_final]
+
+    # --- GRAFICADO (Con inyección de estilos académicos) ---
+    # Se agregaron 'edgecolor' y 'linewidth' para separar visualmente las barras apiladas
+    df_pivot.plot(kind='barh', stacked=True, color=colores_barras, ax=ax, width=0.7, 
+                  edgecolor='white', linewidth=0.8)
+    ax.invert_yaxis() 
+
+    # Implementación del Grid sutil (solo vertical) por detrás de los datos
+    ax.grid(axis='x', linestyle='--', alpha=0.3, color='gray')
+    ax.set_axisbelow(True)
+
+    # Calcular totales por fila para las etiquetas
+    totales = df_pivot.sum(axis=1)
+    margen = totales.max() * 0.015
+    ax.set_xlim(0, totales.max() * 1.25)
+
+    # Etiquetas de texto al final de la barra
+    for i, (idx, total) in enumerate(totales.items()):
+        if total > 0:
+            porcentaje = (total / total_general) * 100
+            texto_etiqueta = f"{int(total)} {sufijo} ({porcentaje:.1f}%)"
+            ax.text(total + margen, i, texto_etiqueta,
+                    color='#333333', va="center", fontweight='bold', fontsize=11)
+
+    # Formatos de ejes (Suavizado de color texto a #333333)
+    # ax.set_title(titulo, fontsize=16, fontweight='bold', pad=20)
+    ax.set_xlabel(xlabel, fontsize=14, fontweight='bold', color='#333333')
+    ax.set_ylabel(ylabel, fontsize=14, fontweight='bold', color='#333333')
+
+    # Limpieza de bordes (Spines)
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['left'].set_color('#cccccc') # Eje Y más tenue
+    ax.spines['bottom'].set_color('#cccccc') # Eje X más tenue
+    
+    ax.tick_params(axis='both', colors='#333333', labelsize=12)
+
+    # # Leyenda limpia y posicionada fuera del gráfico para no tapar barras
+    # plt.legend(title='Motivo Fin de Caso', bbox_to_anchor=(1.02, 1), loc='upper left', 
+    #            frameon=False, title_fontproperties={'weight':'bold', 'size': 12})
+    
+    plt.tight_layout()
+    
+    if nombre_archivo is not None:
+        guardar_pdf(nombre_archivo, subcarpeta=subcarpeta)
+        
+    plt.show()
+
+
+def graficar_top_10_doble(df_pivot, titulo, ylabel, total_general, sufijo="pac.", nombre_archivo=None, subcarpeta="desenlaces"):
+    import matplotlib.pyplot as plt
+    import matplotlib.ticker as mtick # Necesario para el formato de %
+    
+    # 1. Crear lienzo 1x2 compartiendo el eje Y
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7), sharey=True)
+    fig.patch.set_facecolor('white')
+
+    # --- PALETAS Y PREPARACIÓN (Intactas) ---
+    config_motivos = {
+        'alta':             {'nombre': 'alta',             'color': '#3B7A57'}, 
+        'muerte':           {'nombre': 'muerte',           'color': '#4D5359'}, 
+        'hospital externo': {'nombre': 'traslado externo', 'color': '#C85A17'}, 
+        'alta hotel':       {'nombre': 'alta hotel',       'color': '#4682B4'}  
+    }
+
+    paleta_extras = [
+        '#42a5f5', '#ab47bc', '#26a69a', '#ffca28', '#ec407a', '#8d6e63', '#78909c' 
+    ]
+
+    df_pivot.columns = df_pivot.columns.astype(str).str.lower().str.strip()
+    
+    columnas_principales = []
+    colores_barras = []
+    
+    for col_original, config in config_motivos.items():
+        if col_original in df_pivot.columns:
+            df_pivot = df_pivot.rename(columns={col_original: config['nombre']})
+        else:
+            df_pivot[config['nombre']] = 0 
+            
+        columnas_principales.append(config['nombre'])
+        colores_barras.append(config['color'])
+
+    columnas_extra = [col for col in df_pivot.columns if col not in columnas_principales]
+    
+    for i, col in enumerate(columnas_extra):
+        color_dinamico = paleta_extras[i % len(paleta_extras)]
+        colores_barras.append(color_dinamico)
+
+    orden_final = columnas_principales + columnas_extra
+    df_pivot = df_pivot[orden_final]
+
+    # --- 2. CREAR DATAFRAME NORMALIZADO (Densidad 100%) ---
+    # Divide cada celda por la suma de su fila y multiplica por 100
+    df_pivot_norm = df_pivot.div(df_pivot.sum(axis=1), axis=0) * 100
+
+    # --- 3. GRÁFICO IZQUIERDO: VOLUMEN ABSOLUTO (ax1) ---
+    df_pivot.plot(kind='barh', stacked=True, color=colores_barras, ax=ax1, 
+                  width=0.7, edgecolor='white', linewidth=0.8)
+    
+    totales = df_pivot.sum(axis=1)
+    margen = totales.max() * 0.015
+    ax1.set_xlim(0, totales.max() * 1.25)
+
+    # Etiquetas del total absoluto
+    for i, (idx, total) in enumerate(totales.items()):
+        if total > 0:
+            porcentaje_global = (total / total_general) * 100
+            texto_etiqueta = f"{int(total)} {sufijo} ({porcentaje_global:.1f}%)"
+            ax1.text(total + margen, i, texto_etiqueta,
+                     color='#333333', va="center", fontweight='bold', fontsize=11)
+
+    # --- 4. GRÁFICO DERECHO: PROPORCIÓN / DENSIDAD (ax2) ---
+    df_pivot_norm.plot(kind='barh', stacked=True, color=colores_barras, ax=ax2, 
+                       width=0.7, edgecolor='white', linewidth=0.8)
+    
+    ax2.set_xlim(0, 105) # El eje X va hasta 100%, dejamos un mínimo de respiro
+    ax2.xaxis.set_major_formatter(mtick.PercentFormatter()) # Formatea el eje X como %
+
+    # --- 5. FORMATOS COMPARTIDOS Y ESTILOS ---
+    ax1.invert_yaxis() # Invertir el eje Y en ax1 (al tener sharey=True, afecta a ambos)
+
+    # Títulos de los ejes X
+    ax1.set_xlabel('Volumen Absoluto', fontsize=13, fontweight='bold', color='#333333')
+    ax2.set_xlabel('Proporción Interna (%)', fontsize=13, fontweight='bold', color='#333333')
+    ax1.set_ylabel(ylabel, fontsize=13, fontweight='bold', color='#333333')
+
+    # Aplicar limpieza de Grid y Spines a ambos gráficos
+    for ax in [ax1, ax2]:
+        ax.grid(axis='x', linestyle='--', alpha=0.3, color='gray')
+        ax.set_axisbelow(True)
+        ax.spines['right'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.spines['left'].set_color('#cccccc') 
+        ax.spines['bottom'].set_color('#cccccc') 
+        ax.tick_params(axis='both', colors='#333333', labelsize=11)
+        
+        # Eliminar las leyendas individuales que genera Pandas por defecto
+        legend = ax.get_legend()
+        if legend:
+            legend.remove()
+
+    # --- 6. LEYENDA ÚNICA ---
+    # Extraemos los handles de ax2 y creamos una única leyenda general a la derecha de toda la figura
+    handles, labels = ax2.get_legend_handles_labels()
+    ax2.legend(handles, labels, title='Motivo Fin de Caso', bbox_to_anchor=(1.02, 1), 
+               loc='upper left', frameon=False, title_fontproperties={'weight':'bold', 'size': 12})
+    
+    # Título general de la figura (opcional, puedes descomentarlo)
+    # fig.suptitle(titulo, fontsize=16, fontweight='bold', y=1.05, color='#333333')
+
+    plt.tight_layout()
+    
+    if nombre_archivo is not None:
+        guardar_pdf(nombre_archivo, subcarpeta=subcarpeta)
+        
+    plt.show()
+
+    
+def graficar_top_10_apilado_old(df_pivot, titulo, xlabel, ylabel, total_general, sufijo="pac.", nombre_archivo=None, subcarpeta="desenlaces"):
     """Grafica barras horizontales apiladas por motivo de egreso usando la paleta semantica COLORES_MOTIVOS."""
     fig, ax = plt.subplots(figsize=(12, 7))
     fig.patch.set_facecolor('white')
