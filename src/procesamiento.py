@@ -103,10 +103,16 @@ def armar_trayectoria(group, dict_complejidad=None):
 
     
 def requiere_ambulancia(row):
-    # Normalizamos ambos nombres para ser tolerantes a variaciones de formato (espacios, guiones, acentos)
+    """
+    Categoriza un traslado según si requiere ambulancia o si es un traslado
+    entre lugares contiguos (UPA-Módulo).
+    """
     h1 = limpiar_nombre(str(row['hospital_ingreso']))
     h2 = limpiar_nombre(str(row['hospital_destino']))
-    return {h1, h2} not in PAREJAS_MISMO_PREDIO
+    
+    if {h1, h2} in PAREJAS_MISMO_PREDIO:
+        return 'upa_modulo'
+    return 'ambulancia'
 
 def es_upa_o_modulo(nombre):
     n = str(nombre).upper()
@@ -140,13 +146,18 @@ def generar_tabla_resumen(pacientes_df, traslados_df, periodos, hospitales_conoc
             pass
         
         total_transfers = len(df_t_periodo)
-        df_amb_periodo = df_t_periodo[df_t_periodo['es_ambulancia']]
+        
+        # Aplicamos la categorización estricta para asegurar exclusividad mutua
+        df_t_periodo['categoria_excluyente'] = df_t_periodo.apply(requiere_ambulancia, axis=1)
+        
+        df_amb_periodo = df_t_periodo[df_t_periodo['categoria_excluyente'] == 'ambulancia']
         amb_transfers = len(df_amb_periodo)
+        
+        df_refuerzo = df_t_periodo[df_t_periodo['categoria_excluyente'] == 'upa_modulo']
+        upa_modulo_transfers = len(df_refuerzo)
         
         edges_totales = df_t_periodo[['hospital_ingreso', 'hospital_destino']].drop_duplicates().shape[0]
         edges_amb = df_amb_periodo[['hospital_ingreso', 'hospital_destino']].drop_duplicates().shape[0]
-        
-        df_refuerzo = df_t_periodo[df_t_periodo['hospital_ingreso'].apply(es_upa_o_modulo)]
         
         columnas_tabla[titulo] = {
             'Días totales': f"{total_days}",
@@ -156,7 +167,7 @@ def generar_tabla_resumen(pacientes_df, traslados_df, periodos, hospitales_conoc
             'Pacientes trasladados': f"{df_t_periodo['paciente_id'].nunique()}",
             'Promedio diario de traslados': f"{total_transfers/total_days if total_days>0 else 0:.1f}",
             'Traslados en ambulancia (% total)': f"{amb_transfers} ({(amb_transfers/total_transfers*100) if total_transfers>0 else 0:.1f}%)",
-            'Traslados UPA-Módulos': f"{len(df_refuerzo)}",
+            'Traslados UPA-Módulos': f"{upa_modulo_transfers}",
             'Rutas UPA-Módulos': f"{df_refuerzo[['hospital_ingreso', 'hospital_destino']].drop_duplicates().shape[0]}",
             'Rutas totales | Ambulancia': f"{edges_totales} | {edges_amb}",
             'Promedio traslados por ruta | Ambulancia': f"{total_transfers/edges_totales if edges_totales>0 else 0:.1f} | {amb_transfers/edges_amb if edges_amb>0 else 0:.1f}"

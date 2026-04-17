@@ -973,7 +973,13 @@ def graficar_top_10_doble(df_pivot, titulo, ylabel, total_general, sufijo="pac."
     import matplotlib.ticker as mtick # Necesario para el formato de %
     
     # 1. Crear lienzo 1x2 compartiendo el eje Y
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7), sharey=True)
+    # Calculamos un alto dinámico: 0.8 pulgadas por cada fila (barra), 
+    # 0.6 pulgadas exclusivas por cada barra + 2.5 pulgadas fijas para el título, ejes y leyenda
+    alto_dinamico = (len(df_pivot) * 0.6) + 2.5
+    
+    # Creamos los subplots con el ancho fijo (18) y el alto estrictamente proporcional
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, alto_dinamico), sharey=True)
+
     fig.patch.set_facecolor('white')
 
     # --- PALETAS Y PREPARACIÓN (Intactas) ---
@@ -1027,7 +1033,7 @@ def graficar_top_10_doble(df_pivot, titulo, ylabel, total_general, sufijo="pac."
     for i, (idx, total) in enumerate(totales.items()):
         if total > 0:
             porcentaje_global = (total / total_general) * 100
-            texto_etiqueta = f"{int(total)} {sufijo} ({porcentaje_global:.1f}%)"
+            texto_etiqueta = f"{int(total)} {sufijo} ({porcentaje_global:.0f}%)"
             ax1.text(total + margen, i, texto_etiqueta,
                      color='#333333', va="center", fontweight='bold', fontsize=11)
 
@@ -1042,9 +1048,9 @@ def graficar_top_10_doble(df_pivot, titulo, ylabel, total_general, sufijo="pac."
     ax1.invert_yaxis() # Invertir el eje Y en ax1 (al tener sharey=True, afecta a ambos)
 
     # Títulos de los ejes X
-    ax1.set_xlabel('Volumen Absoluto', fontsize=13, fontweight='bold', color='#333333')
-    ax2.set_xlabel('Proporción Interna (%)', fontsize=13, fontweight='bold', color='#333333')
-    ax1.set_ylabel(ylabel, fontsize=13, fontweight='bold', color='#333333')
+    ax1.set_xlabel('Cantidad de pacientes', fontsize=20, fontweight='bold', color='#333333')
+    ax2.set_xlabel('Proporción Interna (%)', fontsize=20, fontweight='bold', color='#333333')
+    ax1.set_ylabel(ylabel, fontsize=20, fontweight='bold', color='#333333')
 
     # Aplicar limpieza de Grid y Spines a ambos gráficos
     for ax in [ax1, ax2]:
@@ -1060,13 +1066,29 @@ def graficar_top_10_doble(df_pivot, titulo, ylabel, total_general, sufijo="pac."
         legend = ax.get_legend()
         if legend:
             legend.remove()
-
-    # --- 6. LEYENDA ÚNICA ---
-    # Extraemos los handles de ax2 y creamos una única leyenda general a la derecha de toda la figura
-    handles, labels = ax2.get_legend_handles_labels()
-    ax2.legend(handles, labels, title='Motivo Fin de Caso', bbox_to_anchor=(1.02, 1), 
-               loc='upper left', frameon=False, title_fontproperties={'weight':'bold', 'size': 12})
+# --- 6. LEYENDA ÚNICA ---
+    handles, labels = ax1.get_legend_handles_labels()
     
+    # Explicación de los parámetros:
+    # bbox_to_anchor=(0.98, 0.05): Mueve la leyenda casi al borde derecho del primer eje (0.98) 
+    # y cerca del fondo (0.05). Ajustá estos números según cuánto espacio vacío tengas.
+    # loc='lower right': El punto de anclaje de la caja de la leyenda es su esquina inferior derecha.
+    
+    ax1.legend(
+        handles[::-1], labels[::-1], # Invertimos el orden para que coincida visualmente con el apilado
+        title='Motivo egreso', 
+        bbox_to_anchor=(0.98, 0.05), 
+        loc='lower right', 
+        frameon=True,        # Con frame suele verse mejor si hay líneas de fondo (grid)
+        facecolor='white',   # Fondo blanco para que no se transparente con el grid
+        framealpha=0.9,      # Un poco de transparencia
+        title_fontproperties={'weight':'bold', 'size': 18},
+        fontsize=16
+    )
+    
+    # Eliminamos la leyenda del segundo eje por si quedó alguna
+    if ax2.get_legend():
+        ax2.get_legend().remove()
     # Título general de la figura (opcional, puedes descomentarlo)
     # fig.suptitle(titulo, fontsize=16, fontweight='bold', y=1.05, color='#333333')
 
@@ -1117,6 +1139,21 @@ def graficar_top_10_apilado_old(df_pivot, titulo, xlabel, ylabel, total_general,
     ax.tick_params(axis='y', labelsize=12)
 
     plt.legend(title='Motivo Fin de Caso', bbox_to_anchor=(1.02, 1), loc='upper left', frameon=False)
+    
+    # 1. Quitamos la leyenda automática que genera pandas
+    ax1.get_legend().remove()
+    
+    # 2. Creamos una leyenda manual posicionada en el "hueco" de abajo a la derecha de ax1
+    # loc='lower right' define qué punto de la caja de la leyenda usamos
+    # bbox_to_anchor=(1.0, 0.0) lo pega a la esquina inferior derecha del eje 1
+    ax1.legend(
+        title='Motivo Fin de Caso', 
+        bbox_to_anchor=(0.98, 0.02), # Ajustá estos valores (0 a 1) para moverlo milimétricamente
+        loc='lower right', 
+        frameon=False,
+        fontsize=9,
+        title_fontsize=10
+    )
     plt.tight_layout()
     if nombre_archivo is not None:
         guardar_pdf(nombre_archivo, subcarpeta=subcarpeta)
