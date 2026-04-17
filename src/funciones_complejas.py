@@ -367,14 +367,14 @@ def generar_matrices_traslados(traslados_df, pacientes_df, hospitales_df, fecha_
                     text.set_color('gray')
                     text.set_fontsize(10)
                 else:
-                    text.set_fontsize(13)
+                    text.set_fontsize(14)
                     text.set_fontweight('bold')
 
     # Estetica ejes
     ax_matriz.xaxis.tick_top(); ax_matriz.xaxis.set_label_position('top')
     # ax_matriz.set_title(titulo_base, fontsize=18, fontweight='bold', pad=40)
-    ax_matriz.set_xlabel("Hospital de Destino", fontsize=18, fontweight='bold', labelpad=15)
-    ax_matriz.set_ylabel("Hospital de Origen", fontsize=18, fontweight='bold', labelpad=15)
+    ax_matriz.set_xlabel("Hospital de Destino", fontsize=16, fontweight='bold', labelpad=15)
+    ax_matriz.set_ylabel("Hospital de Origen", fontsize=16, fontweight='bold', labelpad=15)
 
     ax_totales.xaxis.tick_top(); ax_totales.xaxis.set_label_position('top'); ax_totales.set_ylabel("")
 
@@ -384,12 +384,12 @@ def generar_matrices_traslados(traslados_df, pacientes_df, hospitales_df, fecha_
             hosp_name = tick_label.get_text()
             if ax == ax_matriz: tick_label.set_color(dict_colores.get(hosp_name, 'black'))
             tick_label.set_fontweight('bold'); tick_label.set_rotation(45); tick_label.set_ha('left')
-            tick_label.set_fontsize(13)
+            tick_label.set_fontsize(14)
 
     for tick_label in ax_matriz.get_yticklabels():
         tick_label.set_color(dict_colores.get(tick_label.get_text(), 'black'))
         tick_label.set_fontweight('bold')
-        tick_label.set_fontsize(13)
+        tick_label.set_fontsize(14)
 
     ax_totales.set_yticklabels([]); ax_totales.tick_params(axis='y', which='both', length=0)
 
@@ -405,4 +405,5 @@ def generar_matrices_traslados(traslados_df, pacientes_df, hospitales_df, fecha_
                 
     if nombre_archivo:
         guardar_pdf(nombre_archivo, subcarpeta=subcarpeta)
+        plt.savefig(f'{nombre_archivo}.svg', format='svg', bbox_inches='tight', transparent=True, dpi=300)
     plt.show()
