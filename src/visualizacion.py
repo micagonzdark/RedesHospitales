@@ -32,30 +32,44 @@ def aplicar_escala_visual(valor, max_valor, v_min, v_max, tipo='sqrt', min_valor
         
     escala = np.sqrt(x) if tipo == 'sqrt' else (x**2 if tipo == 'cuadratica' else x)
     return v_min + (escala * (v_max - v_min))
+
+
 def dibujar_grafo_nx(ax, G, posiciones, max_traslados, max_ingresos, cfg):
     lista_nodos = list(G.nodes())
-    tamanos_reales = [G.nodes[n]['size'] for n in lista_nodos]
+    tamanos_reales = [G.nodes[n].get('size', 100) for n in lista_nodos]
 
+    # ==========================================
     # 1. DIBUJAR NODOS
+    # ==========================================
     for forma in set(nx.get_node_attributes(G, 'shape').values()):
-        nodelist = [n for n in lista_nodos if G.nodes[n]['shape'] == forma]
-        if not nodelist: continue
+        nodelist = [n for n in lista_nodos if G.nodes[n].get('shape') == forma]
+        if not nodelist:
+            continue
         
-        # FIX: Pasamos zorder como un parámetro de dibujo de Matplotlib
-        nx.draw_networkx_nodes(
+        # El zorder=4 asegura que los nodos queden por encima de las aristas (zorder=3)
+        nodos_plot = nx.draw_networkx_nodes(
             G, posiciones, nodelist=nodelist, ax=ax, node_shape=forma, 
             node_color=[G.nodes[n]['color'] for n in nodelist], 
             node_size=[G.nodes[n]['size'] for n in nodelist], 
             alpha=[G.nodes[n]['alpha'] for n in nodelist], 
             edgecolors='white', linewidths=cfg.get('lw_nodos', 0.5),
-            label=None  # A veces ayuda a limpiar
-        ).set_zorder(4) # <-- Esta es la forma segura de asignar zorder en NetworkX
+            label=None
+        )
+        if nodos_plot:
+            nodos_plot.set_zorder(4) 
 
+    # ==========================================
     # 2. DIBUJAR ARISTAS
+    # ==========================================
     for u, v, data in G.edges(data=True):
         peso = data['weight']
-        grosor = aplicar_escala_visual(peso, max_traslados, cfg['min_grosor'], cfg['max_grosor'], cfg.get('escala_arista', 'sqrt'))
+        grosor = aplicar_escala_visual(
+            peso, max_traslados, 
+            cfg['min_grosor'], cfg['max_grosor'], 
+            cfg.get('escala_arista', 'sqrt')
+        )
         
+        # Lógica de color de aristas
         if cfg.get('color_por_origen'):
             color_flecha = asignar_color_origen(u)
         elif cfg.get('aristas_negras'):
@@ -64,28 +78,45 @@ def dibujar_grafo_nx(ax, G, posiciones, max_traslados, max_ingresos, cfg):
             intensidad = 0.8 - 0.6 * (peso / max_traslados) if max_traslados > 0 else 0.2
             color_flecha = (intensidad, intensidad, intensidad)
         
-        rad_dinamico = ((sum(ord(c) for c in u + v) % 90 - 35) / 100.0)
-        if abs(rad_dinamico) < 0.12: rad_dinamico = 0.25 if rad_dinamico >= 0 else -0.25
+        # Curvatura dinámica para evitar superposición de flechas bidireccionales
+        rad_dinamico = ((sum(ord(c) for c in str(u) + str(v)) % 90 - 35) / 100.0)
+        if abs(rad_dinamico) < 0.12: 
+            rad_dinamico = 0.25 if rad_dinamico >= 0 else -0.25
 
-        # FIX: Asignamos zorder usando el objeto retornado
         lineas = nx.draw_networkx_edges(
             G, posiciones, edgelist=[(u, v)], ax=ax, width=grosor, edge_color=[color_flecha], 
             alpha=cfg.get('alpha_arista', 0.5), arrowstyle='-|>', arrowsize=cfg.get('arrow_size', 15), 
             connectionstyle=f"arc3,rad={rad_dinamico}", 
             nodelist=lista_nodos, node_size=tamanos_reales
         )
+        
         if lineas:
             for l in lineas:
                 l.set_zorder(3)
 
+    # ==========================================
     # 3. DIBUJAR ETIQUETAS
-    # Las claves k son IDs (H01, H02...), obtenemos el nombre desde los atributos del nodo
-    labels = {
-        k: str(G.nodes[k].get('label', k)).replace('Módulo Hospitalario', 'MÓDULO').replace('Modulo Hospitalario', 'MÓDULO') 
-        for k in lista_nodos
-    }
-    pos_labels = {k: (v[0], v[1] + cfg.get('lbl_offset', 0.005)) for k, v in posiciones.items()} 
+    # ==========================================
+    offset = cfg.get('lbl_offset', 0.005)
+    labels = {}
+    pos_labels = {}
     
+    for k in lista_nodos:
+        # Limpieza del texto
+        nombre_original = str(G.nodes[k].get('label', k))
+        nombre_limpio = nombre_original.replace('Módulo Hospitalario', 'MÓDULO').replace('Modulo Hospitalario', 'MÓDULO')
+        labels[k] = nombre_limpio
+        
+        # Posicionamiento condicional: UPAs abajo, el resto arriba
+        x, y = posiciones[k]
+        if nombre_limpio.startswith('UPA'):
+            # Multiplicamos por 1.5 porque visualmente el texto alineado abajo necesita más espacio 
+            # para no chocar con el borde inferior del nodo
+            pos_labels[k] = (x, y - (offset * 0.9))
+        else:
+            pos_labels[k] = (x, y + offset)
+    
+    # Configuración de la caja de fondo para el texto (mejora la legibilidad sobre aristas)
     bbox_cfg = dict(
         facecolor='white', 
         alpha=cfg.get('lbl_bbox_alpha', 0.7), 
@@ -93,7 +124,6 @@ def dibujar_grafo_nx(ax, G, posiciones, max_traslados, max_ingresos, cfg):
         boxstyle='round,pad=0.2'
     ) if cfg.get('lbl_bbox') else None
 
-    # En etiquetas, zorder suele funcionar, pero lo aseguramos igual
     textos = nx.draw_networkx_labels(
         G, pos_labels, labels=labels, ax=ax, 
         font_size=cfg.get('lbl_size', 10), 
@@ -101,6 +131,7 @@ def dibujar_grafo_nx(ax, G, posiciones, max_traslados, max_ingresos, cfg):
         font_weight=cfg.get('lbl_weight', 'normal'),
         bbox=bbox_cfg
     )
+    
     if textos:
         for t in textos.values():
             t.set_zorder(5)
