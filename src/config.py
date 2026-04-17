@@ -48,9 +48,14 @@ UMBRAL_MIN_TRASLADOS_GRAFICO = 4      # Mínimo de traslados para dibujar la ari
 UMBRAL_MIN_TRASLADOS_DESCRIPCION = 0  # Mínimo de traslados para incluir en estadísticas y tablas resumen (ajustable)
 
 PAREJAS_MISMO_PREDIO = [
+    # Por IDs
     {'H01', 'H10'}, # UPA 17 - QU / Módulo 10
     {'H09', 'H11'}, # UPA 11 - FV / Módulo 11
-    {'H08', 'H13'}  # UPA 5 - AB / Módulo 9
+    {'H08', 'H13'}, # UPA 5 - AB / Módulo 9
+    # Por nombres limpios (para tolerancia en notebooks)
+    {'UPA 17 QU', 'MODULO HOSPITALARIO 10 QU'},
+    {'UPA 11 FV', 'MODULO HOSPITALARIO 11 FV'},
+    {'UPA 5 AB', 'MODULO HOSPITALARIO 9 AB'}
 ]
 
 cfg_grilla = {
@@ -95,14 +100,20 @@ PALETA_GENERAL = [
 
 # B. Motivos de egreso (graficar_top_10_apilado)
 # Colores semánticos sobrios y profesionales.
+
+
 COLORES_MOTIVOS = {
-    "alta":              "#388E3C",  # Verde apagado
-    "alta-domiciliaria": "#388E3C",
-    "muerte":            "#D32F2F",  # Rojo oscuro/granate
-    "alta hotel":        "#0288D1",  # Azul cerúleo
-    "hospital externo":  "#F57C00",  # Naranja tostado
-    "traslado-otro":     "#F57C00",
-    "otro/desconocido":  "#9E9E9E",  # Gris neutro
+    "alta":              "#6F8F7B",  # verde grisáceo
+    "alta-domiciliaria": "#6F8F7B",
+
+    "muerte":            "#8C5A5A",  # rojo apagado (tirando a marrón)
+
+    "alta hotel":        "#7C8DA6",  # azul grisáceo
+
+    "hospital externo":  "#9A8F6A",  # beige/marrón claro (MUCHO mejor que naranja)
+    "traslado-otro":     "#9A8F6A",
+
+    "otro/desconocido":  "#B0B0B0",  # gris neutro claro
 }
 
 # C. Heatmaps de probabilidad 

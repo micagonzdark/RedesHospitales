@@ -103,7 +103,10 @@ def armar_trayectoria(group, dict_complejidad=None):
 
     
 def requiere_ambulancia(row):
-    return {row['hospital_ingreso'], row['hospital_destino']} not in PAREJAS_MISMO_PREDIO
+    # Normalizamos ambos nombres para ser tolerantes a variaciones de formato (espacios, guiones, acentos)
+    h1 = limpiar_nombre(str(row['hospital_ingreso']))
+    h2 = limpiar_nombre(str(row['hospital_destino']))
+    return {h1, h2} not in PAREJAS_MISMO_PREDIO
 
 def es_upa_o_modulo(nombre):
     n = str(nombre).upper()
