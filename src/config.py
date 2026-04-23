@@ -16,6 +16,51 @@ RUTA_BARRIOS_POPULARES = os.path.abspath(os.path.join(os.path.dirname(__file__),
 
 sns.set_style("whitegrid")
 
+
+
+# ==============================================================================
+# CONFIGURACIÓN DE CRITERIOS Y DECISIONES
+# ==============================================================================
+
+# 1. VENTANA TEMPORAL DE TRASLADO y de EDAD
+
+DIAS_VENTANA_TRASLADO = 5 
+TOLERANCIA_EDAD_ANIOS = 2 # Si la edad varía más de esto, se descarta el paciente
+
+
+# 2. JERARQUÍA DE DESENLACES CLÍNICOS
+# Cuanto menor es el número, más "manda" el resultado sobre otros registros.
+# Esto resuelve casos de registros duplicados o solapados.
+ORDEN_PRIORIDAD_CLINICA = {
+    'muerte': 1,
+    'alta-domiciliaria': 2,
+    'traslado-extra-sanitario': 3, # Equivale a Alta Hotel
+    'traslado-otro': 4,            # Traslado fuera de la red sudeste
+    'traslado': 5,                 # Traslado interno (menos prioritario)
+}
+
+# 3. CRITERIOS DE CENSURA / CASOS INCONCLUSOS
+# Si el desenlace final del paciente es uno de estos, se considera que 
+# perdimos el rastro del paciente.
+MOTIVOS_A_DESCARTAR = [
+    'otro', 
+    'anulado', 
+    'traslado-hospital-de-la-red', # Si es el último, es un traslado que no tuvo recepción
+    None,                          # Representa los NaN
+    'nan'
+]
+
+# 4. MAPEO DE NOMBRES PARA PUBLICACIÓN
+# Cómo queremos que se vean los nombres en los gráficos finales.
+MAPEO_NOMBRES_FINALES = {
+    'alta-domiciliaria': 'Alta Médica',
+    'muerte': 'Defunción',
+    'traslado-otro': 'Hospital Externo',
+    'traslado-extra-sanitario': 'Alta Hotel'
+}
+
+
+
 # ==========================================
 # CONFIGURACIÓN GLOBAL DE TIPOGRAFÍA
 # ==========================================
