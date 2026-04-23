@@ -1,0 +1,124 @@
+--- PYTHON FILES ---
+File: src\funciones_complejas.py | Function: analizar_red_hospitalaria
+File: src\io.py | Function: _cargar_datos
+File: src\procesamiento.py | Function: ajustar_coordenadas_upa
+File: src\procesamiento.py | Function: reconstruir_traslados
+File: src\procesamiento.py | Function: agrupar_trayectorias_largas
+File: src\procesamiento.py | Function: obtener_nivel_inicial
+File: src\visualizacion.py | Function: dibujar_grafo_nx
+File: src\visualizacion.py | Function: plot_edges_geo
+File: src\visualizacion.py | Function: plot_red_con_mapa
+File: src\visualizacion.py | Function: plot_red_sobre_amba
+File: src\visualizacion.py | Function: plot_red_interactiva
+File: src\visualizacion.py | Function: graficar_grilla_trayectorias_periodos
+File: src\visualizacion.py | Function: graficar_grilla_trayectorias_dinamico
+File: scripts\patch_final.py | Function: patch_names_and_logic
+File: scripts\patch_notebooks_masivo.py | Function: patcher_02_savefigs
+File: scripts\patch_v5.py | Function: patch_cell_source
+File: scripts\poster.py | Function: plot_pba_en_argentina
+File: scripts\poster.py | Function: plot_red_sudeste
+
+--- NOTEBOOKS ---
+File: JAIIO_notebooks\01_redes_basico.ipynb | Cell: 2
+  Snippet: df_base = pd.read_excel("../data/pacientes.xlsx")
+File: JAIIO_notebooks\01_redes_basico.ipynb | Cell: 3
+  Snippet: mask_val_g = (
+File: JAIIO_notebooks\01_redes_basico.ipynb | Cell: 4
+  Snippet: import matplotlib.pyplot as plt
+File: JAIIO_notebooks\01_redes_basico.ipynb | Cell: 5
+  Snippet: plt.rcParams.update({
+File: JAIIO_notebooks\01_redes_basico.ipynb | Cell: 6
+  Snippet: mapeo_unificacion = {
+File: JAIIO_notebooks\01_redes_basico.ipynb | Cell: 7
+  Snippet: fig, ax = plt.subplots(figsize=(16, 12))
+File: JAIIO_notebooks\01_redes_basico.ipynb | Cell: 12
+  Snippet: mask_validos_stats = (
+File: JAIIO_notebooks\01_redes_basico.ipynb | Cell: 13
+  Snippet: import matplotlib.ticker as ticker
+File: JAIIO_notebooks\01_redes_basico.ipynb | Cell: 14
+  Snippet: df_plot = df_pacientes_trayectorias[
+File: JAIIO_notebooks\01_redes_basico.ipynb | Cell: 15
+  Snippet: fecha_inicio_filtro = '2020-06-01'
+File: JAIIO_notebooks\01_redes_basico.ipynb | Cell: 19
+  Snippet: if 'es_ambulancia' not in df_aristas_traslados.columns:
+File: JAIIO_notebooks\01_redes_basico.ipynb | Cell: 20
+  Snippet: print("Iniciando análisis integrado de trayectorias...")
+File: JAIIO_notebooks\01_redes_basico.ipynb | Cell: 24
+  Snippet: if 'df_red_real' not in locals():
+File: JAIIO_notebooks\01_redes_basico.ipynb | Cell: 27
+  Snippet: df_pacientes_analisis = df_pacientes_trayectorias.copy()
+File: JAIIO_notebooks\01_redes_basico.ipynb | Cell: 30
+  Snippet: if 'es_ambulancia' not in df_aristas_traslados.columns:
+File: JAIIO_notebooks\01_redes_basico.ipynb | Cell: 33
+  Snippet: total_trayectorias = len(df_pacientes_trayectorias)
+File: JAIIO_notebooks\02_mapas.ipynb | Cell: 6
+  Snippet: paises = gpd.read_file("../data/ne_countries/ne_10m_admin_0_countries.shp") # ht
+File: JAIIO_notebooks\02_mapas.ipynb | Cell: 7
+  Snippet: import matplotlib.pyplot as plt
+File: JAIIO_notebooks\02_mapas.ipynb | Cell: 10
+  Snippet: import sys
+File: JAIIO_notebooks\02_mapas.ipynb | Cell: 11
+  Snippet: import geopandas as gpd
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 2
+  Snippet: df_hosp = pd.read_csv('../data/hospitales_coordenadas.csv')
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 3
+  Snippet: df_cantidades, df_probabilidades, transiciones = calcular_matrices_transicion(tr
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 4
+  Snippet: top_10 = trayectorias['ruta_para_top'].value_counts().head(10).reset_index()
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 5
+  Snippet: columna_id = 'paciente_id'
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 7
+  Snippet: todas_las_trayectorias = pd.concat([
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 8
+  Snippet: graficar_top_10_doble(
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 9
+  Snippet: mask_0_traslados = todas_las_trayectorias['ruta_para_top'].str.startswith('Solo 
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 10
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 11
+  Snippet: df_saltos = pd.DataFrame(transiciones.items(), columns=['Salto_Tupla', 'Frecuenc
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 12
+  Snippet: def obtener_origen_destino(ruta_str):
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 13
+  Snippet: trayectorias['Periodo_Covid'] = trayectorias['fecha_ingreso_red'].apply(lambda x
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 14
+  Snippet: nombres_periodos = [p[0] for p in PERIODOS]
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 15
+  Snippet: df_pacientes['motivo_egreso'] = df_pacientes['motivo_egreso'].fillna('otro/desco
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 16
+  Snippet: df_analisis = df_pacientes.copy()
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 17
+  Snippet: df_analisis = trayectorias.copy()
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 18
+  Snippet: print("="*60)
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 19
+  Snippet: trayectorias['pasos_trayectoria'] = trayectorias['ruta_complejidad_str'].apply(
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 20
+  Snippet: columna_id = 'paciente_id'
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 22
+  Snippet: trayectorias = trayectorias.drop_duplicates(subset=['paciente_id']).copy()
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 23
+  Snippet: trayectorias['pasos_trayectoria'] = trayectorias['ruta_complejidad_str'].apply(
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 24
+  Snippet: import matplotlib.pyplot as plt
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 25
+  Snippet: import seaborn as sns
+File: JAIIO_notebooks\03_ranking_trayectorias.ipynb | Cell: 26
+  Snippet: import seaborn as sns
+File: JAIIO_notebooks\04_trayectorias_especificas.ipynb | Cell: 2
+  Snippet: df_hosp = pd.read_csv('../data/hospitales_coordenadas.csv')
+File: JAIIO_notebooks\04_trayectorias_especificas.ipynb | Cell: 3
+  Snippet: top_rutas = trayectorias['ruta_para_top'].value_counts().head(10).index
+File: JAIIO_notebooks\04_trayectorias_especificas.ipynb | Cell: 4
+  Snippet: episodios = pd.read_excel(RUTA_EXCEL, sheet_name='2_Episodios_Cronologicos')
+File: JAIIO_notebooks\04_trayectorias_especificas.ipynb | Cell: 5
+  Snippet: if 'Periodo_Covid' not in trayectorias.columns:
+File: JAIIO_notebooks\04_trayectorias_especificas.ipynb | Cell: 6
+  Snippet: if 'episodios' not in locals() and 'episodios' not in globals():
+File: JAIIO_notebooks\05_1er_informe.ipynb | Cell: 5
+  Snippet: df_pacientes_analisis = df_pacientes_trayectorias.copy()
+File: JAIIO_notebooks\05_1er_informe.ipynb | Cell: 8
+  Snippet: if 'es_ambulancia' not in df_aristas_traslados.columns:
+File: JAIIO_notebooks\06_trayectorias_Review.ipynb | Cell: 2
+  Snippet: df_base = df_base.sort_values(['paciente_id', 'fecha_ingreso']).reset_index(drop
+File: JAIIO_notebooks\06_trayectorias_Review.ipynb | Cell: 4
+  Snippet: motivos_validos = [
