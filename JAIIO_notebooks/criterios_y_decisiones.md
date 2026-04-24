@@ -386,270 +386,185 @@ Construir **dos versiones**:
 
 y comparar
 
+----------------
+-----------------------
+-----------------
 
 
-## BASE 3 - df_pacientes_trayectorias
 
-### 1. Definición de trayectoria
 
-Una trayectoria de paciente se define como:
 
-> la secuencia ordenada de episodios de internación de un mismo paciente a lo largo del tiempo, representando su paso por uno o más hospitales dentro del sistema.
 
-Cada trayectoria:
 
-* está identificada por `paciente_id`
-* contiene uno o más episodios
-* puede involucrar uno o múltiples hospitales
-* refleja un orden temporal (no necesariamente perfecto, pero interpretable)
+
+## BASE 3 - `df_pacientes_trayectorias`
+
+### 1. Definición
+
+Una trayectoria es:
+
+> la secuencia temporal de internaciones de un paciente, representando su recorrido por la red hospitalaria.
+
+Puede ser:
+
+* **trivial**: un solo hospital
+* **conectada**: múltiples hospitales (vía traslados)
 
 ---
 
 ### 2. Unidad de análisis
 
-En esta base:
-
-* cada fila representa **un paciente**
-* cada paciente contiene una **trayectoria completa**
-
-La trayectoria se construye a partir de `df_base_limpia`.
+* 1 fila = 1 paciente
+* cada paciente tiene una única trayectoria
 
 ---
 
-### 3. Criterios de inclusión (trayectoria válida)
+### 3. Criterios de inclusión (estrictos)
 
-Un paciente es incluido en la base si cumple:
+Se incluye un paciente si cumple:
 
-#### 3.1 Identificación
+#### Identidad consistente
 
-* `paciente_id` no nulo
-* todos los episodios pertenecen al mismo ID
-
----
-
-#### 3.2 Estructura mínima
-
-* tiene al menos un episodio válido en `df_base_limpia`
-* tiene al menos una fecha utilizable (`fecha_ingreso` o `fecha_egreso`)
-
----
-
-#### 3.3 Consistencia temporal básica
-
-* existe un orden temporal posible de los episodios
-* para cada episodio:
-
-  * `fecha_ingreso <= fecha_egreso` (ya validado en base 1)
-
-No se exige:
-
-* ausencia de solapamientos
-* ausencia de gaps
-
-Estos casos se marcan, pero no excluyen.
-
----
-
-#### 3.4 Consistencia de edad
-
-* la diferencia de edad entre episodios consecutivos cumple:
+* `paciente_id` válido
+* edades consistentes entre episodios:
 
 ```
 |Δedad| ≤ 2
 ```
 
-Si no se cumple:
-
-* el paciente se mantiene en la base
-* se marca con flag de inconsistencia
+* si no se cumple → **se elimina el paciente**
 
 ---
 
-### 4. Construcción de la trayectoria
+#### Fechas completas
+
+* todos los episodios tienen:
+
+  * `fecha_ingreso`
+  * `fecha_egreso`
+
+* si falta egreso → **se elimina**
+
+---
+
+#### Consistencia temporal mínima
+
+Se permite pequeño error administrativo:
+
+```
+fecha_ingreso ≤ fecha_egreso + tolerancia (minutos)
+```
+
+---
+
+#### Egreso no administrativo
+
+* se excluyen pacientes cuyo recorrido termina en:
+
+  * anulado / error / duplicado
+
+---
+
+## 4. Construcción de trayectorias
+
+#### Principio
+
+Las trayectorias se construyen desde `df_traslados` (no directamente desde episodios)
+
+---
+
+#### Casos
+
+**A. Trayectorias conectadas**
+
+* pacientes con traslados
+* reconstrucción del path:
+
+```
+hospital A → hospital B → hospital C
+```
+
+---
+
+**B. Trayectorias triviales**
+
+* pacientes sin traslados
+* un solo hospital
+
+---
+
+## 5. Representación
 
 Para cada paciente:
 
-#### 4.1 Ordenamiento
+#### Trayectoria hospitalaria
 
-* los episodios se ordenan por:
-
-  * `fecha_ingreso`
-  * fallback: `fecha_egreso`
+* secuencia ordenada de hospitales
 
 ---
 
-#### 4.2 Secuencia hospitalaria
+#### Vínculo a episodios
 
-Se construye la secuencia:
+* cada paso mantiene referencia a `df_base_limpia`
 
-```
-hospital_1 → hospital_2 → ... → hospital_n
-```
-
-Donde:
-
-* pueden existir repeticiones
-* no se exige cambio de hospital entre episodios
-
-Se derivan:
-
-* `hospital_inicio`
-* `hospital_final`
-* `n_hospitales_unicos`
+permite auditar y recuperar datos
 
 ---
 
-#### 4.3 Secuencia de complejidad
+#### Trayectorias derivadas
 
-Usando el mapping externo de hospitales:
-
-Se construye la trayectoria de complejidad:
-
-```
-complejidad_1 → complejidad_2 → ... → complejidad_n
-```
-
-Esto permite analizar:
-
-* escalamiento (baja → alta complejidad)
-* desescalamiento
-* trayectorias erráticas
+* estados (ej: `tipo_egreso`)
+* complejidad (mapa hospital → nivel)
 
 ---
 
-#### 4.4 Secuencia de estados
+## 6. Lógica temporal
 
-A partir de variables clínicas (ej: `tipo_egreso`, `estado_ultimo`, etc):
+Se reutiliza la de `df_traslados`:
 
-Se construye una secuencia de estados:
+* gaps
+* overlaps
+* cambios de hospital
 
-```
-estado_1 → estado_2 → ... → estado_n
-```
-
-Nota:
-
-* esta secuencia puede contener ruido
-* no se usa como criterio de inclusión
-* se utiliza para análisis posteriores
+no se recalculan desde cero
 
 ---
 
-### 5. Eventos entre episodios
+## 7. Desenlace
 
-Se analizan relaciones entre episodios consecutivos:
+Se define a nivel trayectoria:
 
-#### 5.1 Gaps temporales
+### Regla principal
 
-* diferencia entre `fecha_egreso` y siguiente `fecha_ingreso`
-
-Se clasifican en:
-
-* gap corto
-* gap medio
-* gap largo
-* gap extremo
+* si existe muerte → desenlace = muerte (primera ocurrencia)
 
 ---
 
-#### 5.2 Solapamientos
+#### Caso sin muerte
 
-* cuando un episodio comienza antes de que termine el anterior
-
-No se eliminan, se marcan.
+* usar la **trayectoria completa**, no solo el último episodio
 
 ---
 
-#### 5.3 Cambios de hospital
-
-* se identifica si hay cambio entre episodios consecutivos
-
-Esto define:
-
-* movimientos dentro de la red
-* permanencias en el mismo hospital
-
----
-
-### 6. Desenlace del paciente
-
-El desenlace se define a nivel trayectoria.
-
-#### 6.1 Regla principal
-
-Si existe al menos un episodio con:
-
-```
-tipo_egreso == muerte
-```
-
-Entonces:
-
-* `desenlace = muerte`
-* se toma la primera ocurrencia como evento final clínico
-
----
-
-#### 6.2 Caso sin muerte
-
-Se utiliza el último episodio válido:
-
-* excluyendo episodios administrativos si es posible
-
----
-
-#### 6.3 Caso indeterminado
-
-Si no es posible inferir:
+#### Caso ambiguo
 
 * `desenlace = desconocido`
 
 ---
 
-### 7. Flags de calidad
+## 8. Flags
 
-Los pacientes no se eliminan por inconsistencias, sino que se marcan.
-
-#### 7.1 Temporales
+No se eliminan más pacientes, solo se marcan:
 
 * `flag_overlap_episodios`
 * `flag_gap_extremo`
-* `flag_trayectoria_desordenada`
-
----
-
-#### 7.2 Consistencia de datos
-
-* `flag_edad_inconsistente`
-* `flag_posible_duplicado`
-
----
-
-#### 7.3 Lógicos
-
 * `flag_eventos_post_muerte`
 * `flag_multiples_muertes`
-* `flag_sin_desenlace_claro`
+* `flag_no_conectado`
 
 ---
 
-### 8. Clasificación de consistencia
-
-Cada paciente se clasifica en:
-
-* consistente
-* dudoso
-* inconsistente
-
-En función de la cantidad y gravedad de flags.
-
-Esta clasificación no afecta la inclusión en la base.
-
----
-
-### 9. Estructura de la base final
-
-Cada fila contiene:
+#### Estructura final
 
 #### Identificación
 
@@ -657,11 +572,10 @@ Cada fila contiene:
 
 ---
 
-#### Métricas básicas
+#### Métricas
 
 * `n_episodios`
-* `fecha_primer_ingreso`
-* `fecha_ultimo_egreso`
+* `n_hospitales_unicos`
 * `duracion_total`
 
 ---
@@ -669,16 +583,10 @@ Cada fila contiene:
 #### Trayectoria
 
 * `hospital_inicio`
-
 * `hospital_final`
-
-* `n_hospitales_unicos`
-
-* `trayectoria_hospitalaria` (lista o string)
-
-* `trayectoria_complejidad` (lista o string)
-
-* `trayectoria_estados` (lista o string)
+* `trayectoria_hospitalaria`
+* `trayectoria_estados`
+* `trayectoria_complejidad`
 
 ---
 
@@ -691,16 +599,11 @@ Cada fila contiene:
 
 #### Calidad
 
-* flags de consistencia
-* `nivel_consistencia`
+* flags
 
----
+#### Idea clave del diseño
 
-### 10. Filosofía general
-
-* no eliminar pacientes salvo casos extremos
-* no asumir que los datos son perfectamente consistentes
-* priorizar trazabilidad sobre limpieza agresiva
-* separar construcción de trayectoria de interpretación clínica
-
----
+* las trayectorias se construyen desde **movimientos reales (traslados)**
+* los filtros fuertes se aplican solo para asegurar identidad
+* todo lo demás se **marca, no se elimina**
+* se mantiene trazabilidad con las bases anteriores
