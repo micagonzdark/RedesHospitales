@@ -1,51 +1,387 @@
-# Criterios y Reglas de Negocio: Proyecto RedesHospitales
+# Criterios para cada tabla
 
-Este documento detalla las decisiones metodológicas tomadas para la limpieza, procesamiento y construcción de la red de traslados de la **Red Sudeste (Conurbano Sur, Buenos Aires)**.
+## BASE 1 — Episodios (Internaciones)
 
-## 1. Calidad de Datos e Identidad (Data Quality)
+### 1. ¿Qué es un “episodio válido”?
 
-Para garantizar que una trayectoria pertenezca fehacientemente al mismo individuo y no sea producto de errores de carga de ID, se aplican los siguientes filtros:
+> Un episodio válido es una **internación que probablemente ocurrió en la realidad clínica**, aunque tenga imperfecciones administrativas.
 
-* **Consistencia de Edad:** Se valida que la edad del paciente no varíe en más de **2 años** entre diferentes registros de internación.
-    * *Razón:* Cambios mayores sugieren errores de tipeo en el ID o reutilización de identificadores en el sistema hospitalario.
-* **Limpieza de Nombres:** Normalización de nombres de hospitales (ej: Módulos Hospitalarios) para evitar duplicación de nodos en la red por errores de acentuación o espacios.
+#### Condiciones mínimas (core)
 
-## 2. Definición del Desenlace Clínico (Fin de Caso)
+Un episodio debería tener:
 
-Dada la existencia de registros duplicados o actualizaciones administrativas posteriores al evento clínico, se descarta la regla de "último registro" (`last`) en favor de una **Jerarquía de Prioridad Clínica**:
+* `paciente_id` **no nulo**
+* `fecha_ingreso` **no nula**
+* `hospital_origen` **no nulo**
+* `fecha_egreso` **no nula**
 
-1.  **Defunción (Prioridad 1):** Si existe un registro de óbito, este se considera el desenlace final absoluto, invalidando registros administrativos posteriores.
-2.  **Alta Médica (Prioridad 2):** Cierre clínico estándar.
-3.  **Traslado Extra-Sanitario / Hotel (Prioridad 3).**
-4.  **Traslado fuera de la Red (Prioridad 4).**
+Esto ya define:
+*“alguien ingresó a algún hospital en algún momento”*
 
-### Manejo de Censura e Inconclusos
-Los pacientes cuyo último registro sea **"Otro"**, **"Anulado"** o **"NaN"** se clasifican como **Censurado/Inconcluso**. No se imputan como "Alta" para evitar sesgos de supervivencia y sobreestimación del éxito clínico de la red.
+---
 
-## 3. Construcción de Trayectorias (La Red)
+#### Variables NO obligatorias para validar
 
-La red se construye identificando "aristas" (traslados) entre episodios de internación de un mismo paciente.
+* `motivo_egreso` → puede faltar o ser ruidoso
+* `edad`, `sexo`, etc. → útiles pero no estructurales
 
-### La Estrategia del "Pegamento" (Shift Logic)
-Se utiliza la función `shift(-1)` agrupada por `paciente_id` para alinear el hospital de origen con el hospital de destino inmediato en una sola fila de análisis.
+---
 
-### Validación Cruzada de Traslados
-Un traslado se considera válido únicamente si cumple con la intersección de dos criterios:
-1.  **Intención Médica:** El motivo de egreso indica "Traslado" O el motivo es ambiguo (Otro/Vacío) pero la realidad del sistema confirma el movimiento.
-2.  **Realidad Sistémica:** El paciente efectivamente ingresa a un hospital distinto en un periodo de tiempo lógico.
+### 2. Criterios de eliminación (nivel fila)
 
-## 4. Ventana Temporal y Tolerancia Administrativa
+En esta etapa se busca ser **minimalista pero firme**: eliminar solo lo que rompe completamente la semántica del episodio.
 
-Esta es la regla crítica para la construcción de la red. Se define una ventana de **±5 días** entre el egreso del Hospital A y el ingreso al Hospital B.
+#### Eliminar filas si:
 
-* **Límite Superior (+5 días):** Se considera que un reingreso después de los 5 días de un alta no es una derivación directa, sino un nuevo episodio independiente (ej: el paciente volvió a su casa y re-intervino el sistema por un evento nuevo).
-* **Límite Inferior / Solapamiento (-5 días):** Se permite un gap negativo (el ingreso a B ocurre antes del egreso de A) de hasta 5 días.
-    * *Justificación:* En la gestión hospitalaria real, es frecuente que un paciente sea trasladado físicamente un lunes, pero su ficha administrativa en el hospital de origen se cierre recién el jueves. Sin esta **Tolerancia Administrativa**, perderíamos un gran volumen de traslados reales debido a demoras de carga burocrática.
-* **Regla de Física:** En ningún caso el ingreso al Hospital B puede ser anterior al ingreso al Hospital A.
+**(A) No hay identidad básica**
 
-## 5. Resumen de Estados Excluidos
+* `paciente_id` nulo
+  no permite agrupar ni reconstruir trayectorias
 
-Los siguientes motivos de egreso se consideran "Ruido" y no se utilizan para definir cierres de trayectoria válidos ni traslados, a menos que la ventana temporal de ingreso al siguiente nodo demuestre lo contrario:
-* `anulado`
-* `otro`
-* `traslado-hospital-de-la-red` (cuando es el último registro, se considera un traslado fallido o sin recepción confirmada).
+---
+
+**(B) No hay fecha de ingreso**
+
+* `fecha_ingreso` nula
+  no permite ordenar ni construir timeline
+
+---
+
+**(C) No hay hospital**
+
+* `hospital_origen` nulo o vacío
+  no permite ubicar el episodio en la red
+
+---
+
+**(D) Episodios imposibles (error lógico fuerte)**
+
+* `fecha_ingreso > fecha_egreso`
+
+inconsistencia temporal
+eliminar o, como mínimo, flaggear críticamente
+
+---
+
+**(E) Registros administrativos explícitamente inválidos**
+
+Si `motivo_egreso` contiene valores como:
+
+* "anulado"
+* "error"
+* "carga errónea"
+* "duplicado administrativo"
+
+no representan internaciones reales
+
+recomendación:
+
+* preferible: crear flag `episodio_valido_admin = False`
+* evitar borrar en esta etapa (decisión más segura)
+
+---
+
+**(F) No hay fecha de egreso**
+
+* `fecha_egreso` nula
+  inconsistencia estructural relevante
+
+---
+
+**(G) Duración implausible extremadamente corta**
+
+* `fecha_egreso - fecha_ingreso < 5 minutos`
+  probable error administrativo
+
+---
+
+### 3. Qué NO filtramos en esta etapa?
+
+#### NO eliminar aún:
+
+**Edad fuera de rango**
+
+* edad < 0 o > 110
+
+no invalida el episodio
+puede corregirse más adelante
+
+---
+
+**Duraciones atípicas**
+
+* 0 días
+* muy largas
+
+podría haber:
+
+* truncamiento de datos
+* internaciones crónicas
+
+---
+
+**Inconsistencias clínicas**
+
+Ejemplo:
+
+* `requiere_arm = sí` pero no pasó por terapia crítica
+
+es ruido clínico, no invalida el episodio
+
+---
+
+**Duplicados**
+
+no eliminar agresivamente todavía
+
+pueden representar:
+
+* múltiples cargas
+* actualizaciones del mismo episodio
+
+se resuelve en una etapa posterior
+
+---
+---
+---
+
+## BASE 2 — Traslados (Movimientos entre hospitales)
+
+### 1. ¿Qué es un “traslado válido”?
+
+> Un traslado válido es una transición entre dos episodios consecutivos del mismo paciente, en distintos hospitales, donde:
+
+> * hay continuidad temporal razonable
+> * el episodio origen indica traslado
+> * y la identidad del paciente es consistente
+
+---
+
+## 2. Pipeline de diseño (orden IMPORTANTE)
+
+ **NO HACEMOS shift directamente sobre datos sucios**
+
+---
+
+### Paso 0 — Preprocesamiento crítico (ANTES del shift)
+
+#### (0.A) Manejo de duplicados
+
+Problema:
+
+```
+A 12:30 13:00
+A 12:30 13:00
+B 14:00 20:00
+```
+
+Si no limpiamos esto:
+
+* vas a generar pares falsos A→A
+* o duplicar A→B
+
+---
+
+##### Definimos duplicado como:
+
+mismo:
+
+* paciente_id
+* hospital
+* fecha_ingreso
+* fecha_egreso
+
+acción:
+
+* no borramos agresivamente
+* pero sí:
+
+```python
+flag_duplicado_exacto = duplicated(...)
+```
+
+y luego para construir traslados quedarte con **una sola fila por duplicado exacto**
+
+---
+
+### Paso 1 — Ordenar
+
+* por `paciente_id`, `fecha_ingreso`
+
+---
+
+### Paso 2 — Construcción de pares (shift)
+
+Generar:
+
+* hospital_destino
+* fecha_ingreso_destino
+* edad_destino
+* etc.
+
+---
+
+### Paso 3 — Variables clave
+
+* `delta_dias`
+* `delta_edad = edad_destino - edad_origen`
+
+---
+
+### 3. Filtros CORE (más estrictos ahora)
+
+#### (A) Cambio de hospital
+
+* `hospital_origen_i ≠ hospital_origen_{i+1}`
+
+Sin esto, no hay traslado inter-hospitalario
+
+---
+
+#### (B) Fechas necesarias
+
+* `fecha_egreso_i` no nula
+* `fecha_ingreso_{i+1}` no nula
+
+Permiten construir continuidad temporal
+
+---
+
+#### (C) Motivo de egreso OBLIGATORIO
+
+El episodio origen debe cumplir:
+
+* `motivo_egreso ∈ {traslado-hospital-de-la-red}`
+
+⚠️ importante:
+
+* armarmamos una lista explícita en config.py
+
+---
+
+#### (D) Consistencia de edad
+
+Regla:
+
+| \Delta edad | \leq 2
+
+Si no se cumple:
+
+* excluimos traslado
+
+---
+
+#### (E) Regla temporal
+
+* aceptamos: `-2 ≤ delta_dias ≤ 10`
+
+Pero:
+
+* `delta > 5` → flag fuerte
+
+---
+
+#### (F) Exclusión de inconsistencias fuertes
+
+* `delta_dias < -5`
+* `delta_dias > 30`
+
+---
+
+#### (G) Identidad
+
+* `paciente_id` no nulo
+
+---
+
+### 4. Edge cases importantes
+
+#### Caso duplicado + traslado
+
+```
+A
+A (duplicado)
+B
+```
+
+Después del dedup:
+
+```
+A → B
+```
+
+✔ correcto
+
+---
+
+#### Caso con edad inconsistente
+
+```
+edad A = 30
+edad B = 45
+```
+
+eliminar traslado
+
+probablemente error de paciente
+
+---
+
+#### Caso con buen motivo pero gap grande
+
+```
+motivo = traslado
+delta = 8 días
+```
+
+MANTENER pero:
+
+* `flag_gap_largo = 1`
+
+---
+
+#### Caso sin motivo pero con estructura perfecta
+
+POR AHORA se elimina
+
+---
+
+## 6. Flags 
+
+Agregar especialmente:
+
+* `flag_edad_inconsistente`
+* `flag_motivo_valido`
+* `flag_duplicado_origen`
+* `flag_duplicado_destino`
+
+---
+
+## 7. Resumen del pipeline final
+
+1. **deduplicar técnico (exactos)**
+2. ordenar
+3. shift por paciente
+4. construir pares
+5. calcular:
+
+   * delta_dias
+   * delta_edad
+6. aplicar filtros:
+
+   * hospital distinto
+   * fechas válidas
+   * motivo traslado obligatorio
+   * |delta_edad| ≤ 2
+   * ventana temporal
+7. generar flags
+8. construir `df_traslados`
+
+---
+
+Construir **dos versiones**:
+
+* `df_traslados_strict` → con motivo
+* `df_traslados_loose` → sin motivo
+
+y comparar

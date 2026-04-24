@@ -27,6 +27,11 @@ sns.set_style("whitegrid")
 DIAS_VENTANA_TRASLADO = 5 
 TOLERANCIA_EDAD_ANIOS = 2 # Si la edad varía más de esto, se descarta el paciente
 
+# tolerancia para deduplicación (segundos)
+TOL_DUPLICADO_SEGUNDOS = 60
+
+# tolerancia para delta traslado (segundos)
+TOL_DELTA_SEGUNDOS = 5 * 60
 
 # 2. JERARQUÍA DE DESENLACES CLÍNICOS
 # Cuanto menor es el número, más "manda" el resultado sobre otros registros.
