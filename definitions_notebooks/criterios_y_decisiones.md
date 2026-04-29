@@ -1,57 +1,24 @@
 # Criterios para cada tabla
+# 📊 Base 1: Limpieza de Episodios (Internaciones)
 
-## BASE 1 — Episodios (Internaciones)
+El proceso de limpieza de la base principal descarta registros inválidos y separa las anomalías en archivos Excel independientes para su auditoría. Se aplicaron los siguientes filtros, divididos en tres categorías:
 
-### Glosario de Nomenclatura Estricta
-Para asegurar la consistencia y reproducibilidad en la limpieza de datos, aplicaremos las siguientes definiciones:
-* **FLAG (Bandera)**: Una nueva columna booleana en el DataFrame (ej. `flag_edad_rara`) que marca una condición anómala o interesante, pero NO elimina la fila. Sirve para auditar y para tomar decisiones en notebooks posteriores.
-* **MASK (Máscara)**: Una variable booleana temporal en Python (ej. `mask_fechas_validas`) que se usa en memoria para evaluar una condición, pero que no necesariamente se guarda como columna a menos que se convierta en un flag.
-* **FILTRO (Filter)**: La acción destructiva/definitiva de aplicar una máscara para crear un nuevo DataFrame, dejando filas afuera (ej. `df_limpio = df[mask_core_valido]`). Solo se aplica para datos estructuralmente insalvables.
+### 🔴 1. Integridad Estructural (Se eliminan directamente)
+Registros descartados por carecer de los datos mínimos requeridos para el análisis.
+* **1. Sin ID paciente:** Filas donde el `id_paciente` es nulo o está vacío.
+* **2. Sin Hospital:** Filas donde no consta el `hospital_origen`.
+* **3. Sin Fecha de Ingreso:** Registros sin fecha de entrada.
+* **4. Sin Fecha de Egreso:** Registros sin fecha de salida.
 
-### Arquitectura ETL (Reglas de Pipeline)
-Para asegurar que los notebooks funcionen en un entorno de salud riguroso, el código sigue tres reglas inquebrantables de ETL:
-1. **Cero Pérdida de Datos (Preservación Total):** Todas las variables originales y renombradas en la carga inicial (`df_base`) se mantienen intactas a lo largo de todo el código. NO se omiten columnas.
-2. **Sólo Adición:** Los `FLAGS` se calculan y se agregan a `df_base` antes de aplicar los filtros destructivos, asegurando que la base limpia los herede sin perder información.
-3. **Separación de Responsabilidades:** El código de transformación de datos (Carga, Flags, Masks, Filtros y Exportación) se ejecuta de forma secuencial en los bloques iniciales. Cualquier tipo de "ruido visual" (exploración, gráficos EDA, chequeos) queda estrictamente confinado al final del script.
+### 🟡 2. Coherencia Lógica (Se eliminan y se auditan)
+Registros matemáticamente imposibles.
+* **5. Fechas no coherentes (Duración Negativa):** Internaciones donde la fecha de ingreso es posterior al egreso (días de internación menores a cero). Se separan en el 📁 *Excel de anomalías de fechas*.
 
----
-
-### Categoría 1: Integridad Estructural (Filtros Duros)
-Lo mínimo para que exista un evento clínico. Aquí aplicamos **MÁSCARAS** que terminan en **FILTROS**, ya que si faltan estos datos, la fila es insalvable y no representa un evento analizable.
-
-Un episodio debe tener (filtro duro para mantener la fila):
-* `paciente_id` **no nulo**: Sin esto, no hay historia clínica ni trayectoria.
-* `fecha_ingreso` **no nula**: Esencial para ordenar cronológicamente.
-* `fecha_egreso` **no nula**: Inconsistencia estructural grave si falta en retrospectiva.
-* `hospital_origen` **no nulo y no vacío**: No permite ubicar el episodio en la red.
-
----
-
-### Categoría 2: Coherencia Lógica (Filtros Duros)
-Relaciones que rompen la física o el tiempo de los eventos hospitalarios. Dado que impiden construir una línea de tiempo real, se aplican como máscaras para **FILTRAR**.
-
-* **Inconsistencia temporal (`fecha_ingreso <= fecha_egreso`)**: Físicamente imposible que sea al revés. Filtramos directamente manteniendolo válido si es menor o igual.
-* *Nota:* Como la base tiene precisión solo de días (sin hora/minuto), se considera válido (`<=`) si ambas fechas caen en el mismo día.
-
----
-
-### Categoría 3: Calidad de Datos Clínicos (Flags Suaves)
-Datos atípicos que pueden ser erróneos o representar casos especiales, pero no invalidan la existencia de la internación. Se marcan exclusivamente con **FLAGS**.
-
-* **Edad fuera de rango (`flag_edad_rara`)**: `edad < 0` o `edad > 110`. Puede corregirse después.
-* **Duraciones atípicas**:
-  * Negativas (si surgieran por error horario, `flag_duracion_negativa`).
-  * Extremadamente largas (`flag_duracion_larga`), por ejemplo > 60 días, que pueden implicar cronicidad o fallos en el registro del alta.
-
----
-
-### Categoría 4: Validez Administrativa (Flags de Sistema)
-Registros explícitamente anulados o erróneos a nivel de sistema. Aunque no representan internaciones reales clínicamente, se preservan en memoria con un **FLAG** para auditar o decidir su destino en pasos posteriores (Notebook 2).
-
-* **Registros administrativos inválidos (`flag_egreso_admin_invalido`)**: 
-  Si `motivo_egreso` contiene: "anulado", "error", "carga errónea", o "duplicado administrativo".
-
----
+### 🟠 3. Anomalías Clínicas y Administrativas (Se eliminan y se audita el historial)
+Casos atípicos o errores de sistema. Para estos registros, se extrajo **todo el historial del paciente** hacia los Excels de auditoría para entender el contexto clínico.
+* **6. Edades Raras:** Pacientes con menos de 0 años o más de 130 años. (📁 *Excel de anomalías de edades*).
+* **7. Estancias Largas:** Internaciones que superan los 60 días continuos en el nodo. (📁 *Excel de estancias largas*).
+* **8. Errores Administrativos:** Registros cuyo motivo de egreso no es un movimiento clínico válido (ej. "anulado", "error", nulo, etc.). Se conservan únicamente: Alta, Muerte, Traslado u Hotel. (📁 *Excel de errores administrativos*).
 ---
 ---
 
