@@ -14,6 +14,12 @@ RedesHospitales/
 │   ├── 02_mapas.ipynb
 │   ├── 03_ranking_trayectorias.ipynb
 │   └── 04_trayectorias_causas.ipynb
+├── definitions_notebooks/    # Definición de reglas clínicas y pipelines (ETL)
+│   ├── 01_limpieza_episodios.ipynb
+│   ├── 02.TRAYECTORIAS.ipynb
+│   ├── 03.TRASLADOS.ipynb
+│   ├── 04.COMPARACION.ipynb
+│   └── criterios_y_decisiones.md
 ├── data/                     # Datos (no incluidos en el repo, ver abajo)
 ├── docs/                     # Documentación y notas del proyecto
 ├── src/                      # Módulos Python reutilizables

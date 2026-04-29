@@ -8,6 +8,12 @@ Para asegurar la consistencia y reproducibilidad en la limpieza de datos, aplica
 * **MASK (Máscara)**: Una variable booleana temporal en Python (ej. `mask_fechas_validas`) que se usa en memoria para evaluar una condición, pero que no necesariamente se guarda como columna a menos que se convierta en un flag.
 * **FILTRO (Filter)**: La acción destructiva/definitiva de aplicar una máscara para crear un nuevo DataFrame, dejando filas afuera (ej. `df_limpio = df[mask_core_valido]`). Solo se aplica para datos estructuralmente insalvables.
 
+### Arquitectura ETL (Reglas de Pipeline)
+Para asegurar que los notebooks funcionen en un entorno de salud riguroso, el código sigue tres reglas inquebrantables de ETL:
+1. **Cero Pérdida de Datos (Preservación Total):** Todas las variables originales y renombradas en la carga inicial (`df_base`) se mantienen intactas a lo largo de todo el código. NO se omiten columnas.
+2. **Sólo Adición:** Los `FLAGS` se calculan y se agregan a `df_base` antes de aplicar los filtros destructivos, asegurando que la base limpia los herede sin perder información.
+3. **Separación de Responsabilidades:** El código de transformación de datos (Carga, Flags, Masks, Filtros y Exportación) se ejecuta de forma secuencial en los bloques iniciales. Cualquier tipo de "ruido visual" (exploración, gráficos EDA, chequeos) queda estrictamente confinado al final del script.
+
 ---
 
 ### Categoría 1: Integridad Estructural (Filtros Duros)
