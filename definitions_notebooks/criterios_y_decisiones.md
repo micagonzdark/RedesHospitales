@@ -1,24 +1,42 @@
 # Criterios para cada tabla
-# 📊 Base 1: Limpieza de Episodios (Internaciones)
+## Base 1: Limpieza de Episodios (Internaciones)
 
 El proceso de limpieza de la base principal descarta registros inválidos y separa las anomalías en archivos Excel independientes para su auditoría. Se aplicaron los siguientes filtros, divididos en tres categorías:
 
-### 🔴 1. Integridad Estructural (Se eliminan directamente)
+### A. Integridad Estructural (Se eliminan directamente)
 Registros descartados por carecer de los datos mínimos requeridos para el análisis.
 * **1. Sin ID paciente:** Filas donde el `id_paciente` es nulo o está vacío.
 * **2. Sin Hospital:** Filas donde no consta el `hospital_origen`.
 * **3. Sin Fecha de Ingreso:** Registros sin fecha de entrada.
 * **4. Sin Fecha de Egreso:** Registros sin fecha de salida.
 
-### 🟡 2. Coherencia Lógica (Se eliminan y se auditan)
+### B. Coherencia Lógica (Se eliminan y se auditan)
 Registros matemáticamente imposibles.
 * **5. Fechas no coherentes (Duración Negativa):** Internaciones donde la fecha de ingreso es posterior al egreso (días de internación menores a cero). Se separan en el 📁 *Excel de anomalías de fechas*.
 
-### 🟠 3. Anomalías Clínicas y Administrativas (Se eliminan y se audita el historial)
+### C. Anomalías Clínicas y Administrativas (Se eliminan y se audita el historial)
 Casos atípicos o errores de sistema. Para estos registros, se extrajo **todo el historial del paciente** hacia los Excels de auditoría para entender el contexto clínico.
 * **6. Edades Raras:** Pacientes con menos de 0 años o más de 130 años. (📁 *Excel de anomalías de edades*).
 * **7. Estancias Largas:** Internaciones que superan los 60 días continuos en el nodo. (📁 *Excel de estancias largas*).
 * **8. Errores Administrativos:** Registros cuyo motivo de egreso no es un movimiento clínico válido (ej. "anulado", "error", nulo, etc.). Se conservan únicamente: Alta, Muerte, Traslado u Hotel. (📁 *Excel de errores administrativos*).
+<!--Lista resumen del Pipeline (1 al 8):
+1. Sin ID paciente: Filas eliminadas por falta de identificación de paciente.
+
+2. Sin Hospital: Filas eliminadas por falta de centro de origen.
+
+3. Sin Fecha Ingreso: Filas eliminadas por falta de fecha de entrada.
+
+4. Sin Fecha Egreso: Filas eliminadas por falta de fecha de salida.
+
+5. Fechas no coherentes / Duración Negativa: Casos donde la fecha de ingreso es posterior al egreso. (Eliminados y enviados a 5_anomalias_fechas.xlsx).
+
+6. Edades Raras: Pacientes fuera del rango (0-130 años). Se filtra el episodio y se guarda el historial en 6_anomalias_edades.xlsx.
+
+7. Estancias Largas: Casos de más de 60 días. Se filtra el episodio y se guarda el historial en 7_anomalias_estancias_largas.xlsx.
+
+8. Errores Administrativos: Motivos de egreso no clínicos (anulado, error, desconocido). Se filtra el episodio y se guarda el historial en 8_anomalias_admin.xlsx.
+
+-->
 ---
 ---
 
